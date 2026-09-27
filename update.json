@@ -1,0 +1,14 @@
+{
+  "project": "clientre5",
+  "version": "1.0",
+  "url": "https://github.com/Mozgi512/Clientre5/releases/latest/download/clientre5.bin",
+  "sha256": "a48850afecb2fa8bfad6cd50cf0a94fa8d41577219fe7b49924853fa816afa96",
+  "size": 8443040,
+  "notes": "",
+  "updater": {
+    "version": "1.0.0",
+    "url": "https://github.com/Mozgi512/Clientre5/releases/latest/download/tab5_factory_updater.bin",
+    "sha256": "a0101e8a44516eb30cbcbd5f034aeb030844663ef4b03a8ea22f3457a0d854aa",
+    "size": 298496
+  }
+}
