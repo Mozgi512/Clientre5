@@ -1,0 +1,14 @@
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+.claude/
+~$*
+
+# Local working files
+*.ppm
+*.xlsx
+リクエスト.txt
+
+# Font source used by firmware/tools/gen_pixel_fonts.sh (download separately)
+x12y12pxMaruMinya.ttf

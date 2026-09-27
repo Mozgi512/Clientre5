@@ -1,0 +1,12 @@
+build/
+managed_components/
+dependencies.lock
+sdkconfig
+sdkconfig.old
+updater/build/
+updater/managed_components/
+updater/dependencies.lock
+updater/sdkconfig
+updater/sdkconfig.old
+release/
+tools/ui_preview/build/

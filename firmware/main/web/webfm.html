@@ -1,0 +1,59 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clientre 5 Web Files</title>
+<style>
+:root{--ink:#20324a;--muted:#6d7f96;--line:#d9e2ec;--accent:#2f6fed;--danger:#d4380d}
+body{margin:0;padding:16px;background:#eef2f7;font-family:system-ui,'Segoe UI','Hiragino Sans','Noto Sans JP','Microsoft YaHei',sans-serif;color:var(--ink);font-size:15px}
+.shell{max-width:1100px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.hero{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.hero h1{margin:0;font-size:22px;flex:1}
+.bar{display:flex;gap:8px;padding:12px 20px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--line)}
+button,.btn{font:inherit;border:0;border-radius:10px;padding:8px 12px;background:var(--accent);color:#fff;cursor:pointer;text-decoration:none}
+button.sec{background:#eef4ff;color:#2451a6}button.danger{background:#fff1f0;color:var(--danger)}
+input[type=text]{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:10px;min-width:180px}
+table{width:100%;border-collapse:collapse}td,th{padding:10px 12px;border-bottom:1px solid #edf2f7;text-align:left;vertical-align:middle}
+th{color:var(--muted);font-size:13px;font-weight:600}tr:hover td{background:#f8fbff}
+a.name{color:var(--ink);text-decoration:none;font-weight:600;word-break:break-all}.dir a.name{color:#9a6700}
+.muted{color:var(--muted);font-size:13px}.acts{display:flex;gap:6px;flex-wrap:wrap}.acts button{padding:5px 9px;font-size:13px}
+.sys{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;padding:16px 20px}
+.card{border:1px solid var(--line);border-radius:12px;padding:12px}.card b{display:block;margin-bottom:6px}
+#status{padding:8px 20px;color:var(--muted);min-height:1.4em}.err{color:var(--danger)}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:9}
+.overlay.on{display:flex}.panel{background:#fff;border-radius:14px;width:min(900px,94vw);max-height:90vh;display:flex;flex-direction:column;padding:14px;gap:10px}
+textarea{flex:1;min-height:50vh;font:13px ui-monospace,Menlo,monospace;border:1px solid var(--line);border-radius:10px;padding:10px}
+img.view{max-width:100%;max-height:78vh;display:block;margin:auto}
+progress{width:200px}
+</style></head><body><div class="shell">
+<div class="hero"><h1>Clientre 5 Web Files</h1><span id="path" class="muted"></span><button class="sec" onclick="showSys()">System</button></div>
+<div class="bar"><button class="sec" onclick="up()">&#8679; Up</button><button class="sec" onclick="load()">Refresh</button>
+<button onclick="mk('dir')">New folder</button><button onclick="mk('file')">New file</button>
+<label class="btn" style="background:#10b981">Upload<input id="file" type="file" multiple style="display:none" onchange="upload(this.files)"></label>
+<progress id="prog" value="0" max="100" style="display:none"></progress>
+<span class="muted" id="free"></span></div>
+<div id="status"></div>
+<table><thead><tr><th>Name</th><th>Size</th><th>Actions</th></tr></thead><tbody id="rows"></tbody></table>
+<div class="sys" id="sys" style="display:none"></div>
+</div>
+<div class="overlay" id="ov"><div class="panel"><div style="display:flex;gap:8px;align-items:center"><b id="ovTitle" style="flex:1"></b><button class="sec" onclick="closeOv()">Close</button><button id="saveBtn" onclick="saveEdit()">Save</button></div><div id="ovBody"></div></div></div>
+<script>
+let dir='',items=[],editPath='';const el=i=>document.getElementById(i),enc=encodeURIComponent;
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function status(t,e){el('status').textContent=t||'';el('status').className=e?'err':''}
+function fmt(n){if(n===undefined)return'';let u=['B','KB','MB','GB'],i=0;while(n>=1024&&i<3){n/=1024;i++}return(i?n.toFixed(1):n)+' '+u[i]}
+function ext(n){let i=n.lastIndexOf('.');return i<0?'':n.slice(i+1).toLowerCase()}
+const isImg=n=>['jpg','jpeg','png','gif','bmp'].includes(ext(n)),isTxt=n=>['txt','log','md','json','ini','cfg','conf','csv','c','h','cpp','py','js','html','css','xml','yaml','yml','sh'].includes(ext(n));
+async function api(u,o){let r=await fetch(u,o);let t=await r.text();if(!r.ok)throw new Error(t||r.status);return t}
+async function load(){el('sys').style.display='none';try{status('Loading...');let j=JSON.parse(await api('/webfm/list?dir='+enc(dir)));items=j.items;el('path').textContent='/'+dir;el('free').textContent=j.free!==undefined?('Free '+fmt(j.free)+' / '+fmt(j.total)):'';render();status('')}catch(e){status(e.message,1)}}
+function full(it){return(dir?dir+'/':'')+it.name}
+function render(){items.sort((a,b)=>(b.dir-a.dir)||a.name.localeCompare(b.name));el('rows').innerHTML=items.map((it,i)=>`<tr class="${it.dir?'dir':''}"><td><a class="name" href="#" onclick="open(${i});return false">${it.dir?'&#128193; ':''}${esc(it.name)}</a></td><td class="muted">${it.dir?'':fmt(it.size)}</td><td class="acts">${it.dir?'':`<a class="btn" style="padding:5px 9px;font-size:13px" href="/webfm/download?path=${enc(full(it))}">Download</a>`}${!it.dir&&isTxt(it.name)?`<button class="sec" onclick="edit(${i})">Edit</button>`:''}<button class="sec" onclick="ren(${i})">Rename</button><button class="sec" onclick="mv(${i})">Move</button><button class="danger" onclick="del(${i})">Delete</button></td></tr>`).join('')}
+function open(i){let it=items[i];if(it.dir){dir=full(it);load();return}if(isImg(it.name)){el('ovTitle').textContent=it.name;el('saveBtn').style.display='none';el('ovBody').innerHTML=`<img class="view" src="/webfm/image?path=${enc(full(it))}">`;el('ov').classList.add('on');return}if(isTxt(it.name)){edit(i);return}location='/webfm/download?path='+enc(full(it))}
+function up(){if(!dir)return;let i=dir.lastIndexOf('/');dir=i>0?dir.slice(0,i):'';load()}
+async function mk(kind){let n=prompt(kind==='dir'?'Folder name':'File name');if(!n)return;try{await api(`/webfm/${kind==='dir'?'mkdir':'newfile'}?dir=${enc(dir)}&name=${enc(n)}`);load()}catch(e){status(e.message,1)}}
+async function ren(i){let n=prompt('New name',items[i].name);if(!n||n===items[i].name)return;try{await api(`/webfm/rename?path=${enc(full(items[i]))}&name=${enc(n)}`);load()}catch(e){status(e.message,1)}}
+async function mv(i){let d=prompt('Move to folder (relative to drive root)',dir);if(d===null)return;try{await api(`/webfm/move?path=${enc(full(items[i]))}&dir=${enc(d)}`);load()}catch(e){status(e.message,1)}}
+async function del(i){if(!confirm('Delete '+items[i].name+'?'))return;try{await api('/webfm/delete?path='+enc(full(items[i])));load()}catch(e){status(e.message,1)}}
+async function edit(i){try{let t=await api('/webfm/read?path='+enc(full(items[i])));editPath=full(items[i]);el('ovTitle').textContent=items[i].name;el('saveBtn').style.display='';el('ovBody').innerHTML='<textarea id="ta"></textarea>';el('ta').value=t;el('ov').classList.add('on')}catch(e){status(e.message,1)}}
+async function saveEdit(){try{await api('/webfm/save?path='+enc(editPath),{method:'POST',body:el('ta').value});closeOv();status('Saved');load()}catch(e){status(e.message,1)}}
+function closeOv(){el('ov').classList.remove('on');el('ovBody').innerHTML=''}
+const CH=65536;async function upload(files){let p=el('prog');p.style.display='';for(let f of files){for(let off=0;off<f.size||off===0;off+=CH){let end=Math.min(f.size,off+CH);let r=await fetch(`/webfm/upload?dir=${enc(dir)}&name=${enc(f.name)}&offset=${off}&total=${f.size}`,{method:'POST',body:f.slice(off,end)});if(!r.ok){status(f.name+': '+await r.text(),1);p.style.display='none';return}p.value=Math.floor(end*100/Math.max(1,f.size));status(`Uploading ${f.name} ${p.value}%`);if(f.size===0)break}}p.style.display='none';status('Upload done');el('file').value='';load()}
+async function showSys(){try{let d=JSON.parse(await api('/webfm/sysinfo'));el('sys').style.display='grid';el('sys').innerHTML=Object.entries(d).map(([k,v])=>`<div class="card"><b>${esc(k)}</b><span>${esc(v)}</span></div>`).join('')}catch(e){status(e.message,1)}}
+load();
+</script></body></html>
