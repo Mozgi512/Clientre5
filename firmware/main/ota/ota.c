@@ -22,10 +22,19 @@ static esp_http_client_handle_t open_http(const char *url, int *status, int *len
     esp_http_client_config_t cfg = { .url = url, .timeout_ms = 15000, .crt_bundle_attach = esp_crt_bundle_attach, .buffer_size = 4096, .buffer_size_tx = 2048, .user_agent = "Clientre5/1.0" };
     esp_http_client_handle_t h = esp_http_client_init(&cfg);
     if (!h) return NULL;
-    if (esp_http_client_open(h, 0) != ESP_OK) { esp_http_client_cleanup(h); return NULL; }
-    int cl = esp_http_client_fetch_headers(h);
-    *status = esp_http_client_get_status_code(h);
-    *len = cl;
+    /* open/fetch_headers do not follow redirects by themselves, and GitHub release
+     * and raw downloads always answer with one. Same loop as esp_https_ota. */
+    for (int hop = 0; hop < 5; hop++) {
+        if (esp_http_client_open(h, 0) != ESP_OK) { esp_http_client_cleanup(h); return NULL; }
+        int cl = esp_http_client_fetch_headers(h);
+        *status = esp_http_client_get_status_code(h);
+        *len = cl;
+        bool redirect = *status == 301 || *status == 302 || *status == 303 || *status == 307 || *status == 308;
+        if (!redirect) return h;
+        if (esp_http_client_set_redirection(h) != ESP_OK) break;
+        char drain[256];
+        while (esp_http_client_read(h, drain, sizeof(drain)) > 0) {}
+    }
     return h;
 }
 
