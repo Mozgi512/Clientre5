@@ -116,7 +116,8 @@ Clientre 5's own code (`firmware/main`, `firmware/updater`, `firmware/tools`) is
 | [LVGL](https://lvgl.io/) | MIT |
 | ESP-IDF and Espressif components | Apache-2.0 |
 | SKK-JISYO.M (dictionary data) | GPL-2.0-or-later |
-| x12y12pxMaruMinya (hicc), Noto Sans CJK, DejaVu Sans Mono (generated font data) | see each font |
+| x12y12pxMaruMinya by hicc (generated bitmap subset; the TTF is not included) | free, commercial use, modification and embedding permitted |
+| Noto Sans CJK, DejaVu Sans Mono (generated font data) | OFL-1.1 / Bitstream Vera |
 
 Firmware binaries therefore include LGPL and GPL-licensed parts; the complete source is in this
 repository.

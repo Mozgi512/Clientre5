@@ -111,6 +111,7 @@ Clientre 5 独自のコード（`firmware/main`、`firmware/updater`、`firmware
 | [LVGL](https://lvgl.io/) | MIT |
 | ESP-IDF と Espressif コンポーネント | Apache-2.0 |
 | SKK-JISYO.M（辞書データ） | GPL-2.0-or-later |
-| x12y12pxMaruMinya（hicc）、Noto Sans CJK、DejaVu Sans Mono（生成フォントデータ） | 各フォントのライセンス |
+| x12y12pxMaruMinya「マルミーニャ」hicc 作（ビットマップ化した部分集合のみ。TTF は同梱しません） | 無料・商用利用可・加工/埋め込み可 |
+| Noto Sans CJK、DejaVu Sans Mono（生成フォントデータ） | OFL-1.1 / Bitstream Vera |
 
 このため、ファームウェアのバイナリには LGPL・GPL のコンポーネントが含まれます。完全なソースコードはこのリポジトリにあります。

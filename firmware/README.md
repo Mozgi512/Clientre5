@@ -154,7 +154,8 @@ cannot use `autogroup:member` or a user as `dst` when the source is a tag).
 ## Regenerating fonts / dictionaries
 
 `gen_pixel_fonts.sh` reads `x12y12pxMaruMinya.ttf` from the repository root by default
-(not committed; download it from the font's author, hicc), or accepts a TTF path. `gen_fonts.sh` needs `NotoSansMonoCJKjp-Regular.otf` and
+(not committed: the font's terms allow embedding but the TTF itself is obtained from its
+author, hicc), or accepts a TTF path. `gen_fonts.sh` needs `NotoSansMonoCJKjp-Regular.otf` and
 `DejaVuSansMono.ttf` in the supplied directory.
 
 ```sh
