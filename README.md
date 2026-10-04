@@ -100,6 +100,7 @@ font and dictionary generation, and implementation notes.
 │   ├── updater/         factory-partition updater used by OTA
 │   ├── components/      vendored libssh, MicroLink, wireguard-lwip
 │   └── tools/           font / icon / dictionary generators, release script, UI preview
+├── cad/                 STEP models: modified battery case, JIS keyboard (CC BY 4.0)
 └── docs/                user guides and UI renders
 ```
 
@@ -121,3 +122,6 @@ Clientre 5's own code (`firmware/main`, `firmware/updater`, `firmware/tools`) is
 
 Firmware binaries therefore include LGPL and GPL-licensed parts; the complete source is in this
 repository.
+
+The CAD data in [`cad/`](cad/README.md) is released under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).

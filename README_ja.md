@@ -95,6 +95,7 @@ python -m esptool --chip esp32p4 -p PORT --baud 1500000 write_flash \
 │   ├── updater/         OTA で使う factory 領域のアップデーター
 │   ├── components/      同梱の libssh、MicroLink、wireguard-lwip
 │   └── tools/           フォント / アイコン / 辞書の生成、リリーススクリプト、UI プレビュー
+├── cad/                 STEP モデル: 改造バッテリーケース、JIS キーボード（CC BY 4.0）
 └── docs/                ユーザーガイドと UI 画像
 ```
 
@@ -115,3 +116,5 @@ Clientre 5 独自のコード（`firmware/main`、`firmware/updater`、`firmware
 | Noto Sans CJK、DejaVu Sans Mono（生成フォントデータ） | OFL-1.1 / Bitstream Vera |
 
 このため、ファームウェアのバイナリには LGPL・GPL のコンポーネントが含まれます。完全なソースコードはこのリポジトリにあります。
+
+[`cad/`](cad/README_ja.md) の CAD データは [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.ja) で公開しています。
