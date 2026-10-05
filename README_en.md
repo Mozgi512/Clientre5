@@ -49,6 +49,10 @@ Japanese input, a Tailscale client, and a small set of file and media tools.
 | Display | 1280 × 720 MIPI-DSI touchscreen |
 | Optional | Tab5 keyboard, USB keyboard, TF card |
 
+![Tab5 with the customised JIS-layout keyboard, showing the standby screen](docs/photos/tab5-jis-keyboard.jpg)
+
+*CAD data for the keyboard in the photo and the battery case is in [cad/](cad/README_en.md).*
+
 ## Status
 
 Verified on a physical Tab5: display, touch, keyboards, WiFi, SSH (including over Tailscale),

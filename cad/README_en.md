@@ -33,6 +33,8 @@ The case requires a modified NP-F battery:
 
 ## Keyboard
 
+![The customised JIS-layout Tab5 keyboard](../docs/photos/tab5-jis-keyboard.jpg)
+
 - Printing the custom buttons requires a **0.2 mm nozzle**.
 - When taking the keyboard apart, be careful not to lose the springs at the latches.
 
