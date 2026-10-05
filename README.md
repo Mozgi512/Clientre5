@@ -123,5 +123,5 @@ Clientre 5's own code (`firmware/main`, `firmware/updater`, `firmware/tools`) is
 Firmware binaries therefore include LGPL and GPL-licensed parts; the complete source is in this
 repository.
 
-The CAD data in [`cad/`](cad/README.md) is released under
+The CAD data in [`cad/`](cad/README_en.md) is released under
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).

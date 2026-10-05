@@ -117,4 +117,4 @@ Clientre 5 独自のコード（`firmware/main`、`firmware/updater`、`firmware
 
 このため、ファームウェアのバイナリには LGPL・GPL のコンポーネントが含まれます。完全なソースコードはこのリポジトリにあります。
 
-[`cad/`](cad/README_ja.md) の CAD データは [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.ja) で公開しています。
+[`cad/`](cad/README.md) の CAD データは [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.ja) で公開しています。
