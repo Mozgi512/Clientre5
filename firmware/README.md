@@ -2,7 +2,7 @@
 
 Source tree of Clientre 5, a pocket SSH terminal OS for the M5Stack Tab5 (ESP32-P4),
 built on ESP-IDF v5.5 + LVGL 9. This document covers the build and the implementation
-details; see the [top-level README](../README.md) for an overview.
+details; see the [top-level README](../README_en.md) for an overview.
 
 > Status: verified on a physical Tab5 (board v3): display, touch, keyboard, WiFi, SSH over a
 > Tailscale tailnet, Japanese input, and USB disk mode. Audio playback and the OTA path are

@@ -43,4 +43,4 @@ M5Stack Tab5 で Clientre 5 を使うためのハードウェアの 3D モデル
 
 > Clientre 5 CAD data by Mozgi512 (https://github.com/Mozgi512/Clientre5), CC BY 4.0
 
-リポジトリのその他の部分は、それぞれのライセンスに従います（トップの [README](../README_ja.md#ライセンス) を参照）。
+リポジトリのその他の部分は、それぞれのライセンスに従います（トップの [README](../README.md#ライセンス) を参照）。

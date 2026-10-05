@@ -44,4 +44,4 @@ You may share and adapt it, including commercially, as long as you give credit:
 
 > Clientre 5 CAD data by Mozgi512 (https://github.com/Mozgi512/Clientre5), CC BY 4.0
 
-The rest of the repository keeps its own licenses (see the top-level [README](../README.md#license)).
+The rest of the repository keeps its own licenses (see the top-level [README](../README_en.md#license)).

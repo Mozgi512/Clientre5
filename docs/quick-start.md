@@ -1,6 +1,6 @@
 # Clientre 5 Quick Start
 
-> For flashing the device, see the [README](../README.md#build-and-flash).
+> For flashing the device, see the [README](../README_en.md#build-and-flash).
 
 ## 1. First boot
 
