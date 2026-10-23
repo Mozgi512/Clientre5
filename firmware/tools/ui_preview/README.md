@@ -97,3 +97,17 @@ Renders the powerlevel10k two-line prompt from GitHub issue #1 (frame, segments,
 light, double and heavy boxes, rounded corners and dashes; checks that the frame and the box
 verticals run unbroken across rows, that the double strokes keep their gap, and that `▶` fits its
 cell. Writes `/tmp/clientre-box-<preset>.ppm`.
+
+## herdr and mouse input
+
+```sh
+./preview herdr 0
+./preview herdr 3
+```
+
+Feeds the start-up sequence of [herdr](https://herdr.dev/) (`src/client/terminal_setup.rs`: kitty
+keyboard push and query, DECRQM, DA1, mouse, paste, focus, modifyOtherKeys) and checks that only DA1
+is answered, the cursor stays put and no attributes change; then checks SGR and X10 mouse reports,
+that a real tap, long press and swipe on the view arrive as a left click, a right click and wheel notches, and that a herdr-like
+sidebar draws its state icons ● ◐ ✓ ○ × and other one-column symbols inside their cells. Writes
+`/tmp/clientre-herdr-<preset>.ppm`.

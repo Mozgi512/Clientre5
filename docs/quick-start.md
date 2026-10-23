@@ -19,6 +19,10 @@ empty for open networks. Once connected, the clock is synced over NTP and writte
 2. Tap the card to connect. On the first connection, check the host key fingerprint and trust it (stored in NVS).
 3. Screen-edge hot zones: **top** = status bar, **left** = control bar (ESC/TAB/CTRL/ALT/arrows/HOME/END/PgUp/PgDn/F-keys/^C/^Z/^D), **right** = soft keyboard.
 4. Scroll back by dragging the screen up and down, or with Shift+PgUp/PgDn.
+   When a mouse-aware program (herdr, vim, htop, ...) turns on mouse tracking, a tap is sent as a left
+   click, a long press as a right click and a vertical swipe as the mouse wheel. In herdr, long-press a
+   pane or tab and pick "Close" to close it. The terminal menu then does not open on a long press:
+   disconnect with the close button on the status bar and switch input with Ctrl+Space or the A/あ button.
 
 ## 4. Japanese input
 

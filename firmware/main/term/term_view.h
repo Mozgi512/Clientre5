@@ -17,7 +17,8 @@ typedef enum { TERM_CURSOR_BLOCK = 0, TERM_CURSOR_UNDERLINE = 1, TERM_CURSOR_BAR
 void term_view_set_cursor(term_view_t *tv, term_cursor_t style, bool blink, lv_color_t color);
 int  term_view_cell_w(term_view_t *tv);
 int  term_view_cell_h(term_view_t *tv);
-/* True only while the current press has stayed within the tap slop. */
+/* True only while the current press has stayed within the tap slop and the
+ * host is not tracking the mouse (then a long press is its right click). */
 bool term_view_long_press_allowed(term_view_t *tv);
 #ifdef __cplusplus
 }

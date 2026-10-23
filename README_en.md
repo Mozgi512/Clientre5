@@ -12,7 +12,9 @@ Japanese input, a Tailscale client, and a small set of file and media tools.
 
 - **SSH terminal**: VT100 / xterm-256color emulator with scrollback and double-width CJK
   characters. [Nerd Font](https://www.nerdfonts.com/) icons and Powerline symbols are built in, so
-  oh-my-zsh, powerlevel10k and Starship prompts render as intended. Password, public-key and keyboard-interactive auth; host keys are pinned
+  oh-my-zsh, powerlevel10k and Starship prompts render as intended. In mouse-aware TUIs
+  ([herdr](https://herdr.dev/), vim, htop) a tap is a left click, a long press a right click and a
+  swipe the wheel. Password, public-key and keyboard-interactive auth; host keys are pinned
   on first connect.
 - **Japanese input**: romaji to kana, SKK dictionary kana-kanji conversion (SKK-JISYO.M
   built in, SKK-JISYO.L loadable from the TF card). Chinese pinyin is available when the UI

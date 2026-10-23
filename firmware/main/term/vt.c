@@ -24,7 +24,9 @@ struct vt {
     int saved_cx, saved_cy; uint32_t saved_fg, saved_bg; uint8_t saved_attr;
     int scroll_top, scroll_bot;
     uint32_t fg, bg; uint8_t attr;
-    bool cursor_visible, autowrap, origin_mode, insert_mode, app_cursor, app_keypad, bracketed_paste, mouse;
+    bool cursor_visible, autowrap, origin_mode, insert_mode, app_cursor, app_keypad, bracketed_paste;
+    int mouse_mode;          /* 0 off, or the tracking mode: 1000, 1002 or 1003 */
+    bool mouse_sgr;          /* 1006: SGR coordinates instead of X10 bytes */
     bool wrap_pending;
     bool alt_active;
     int charset_g0;          /* 0 = ASCII, 1 = DEC graphics */
@@ -246,7 +248,10 @@ static void set_mode(vt_t *v, bool on)
             case 7: v->autowrap = on; break;
             case 12: break;
             case 25: v->cursor_visible = on; mark_dirty(v, v->cy); break;
-            case 1000: case 1002: case 1003: case 1006: v->mouse = on; break;
+            case 1000: case 1002: case 1003:
+                if (on) v->mouse_mode = p; else if (v->mouse_mode == p) v->mouse_mode = 0;
+                break;
+            case 1006: v->mouse_sgr = on; break;
             case 2004: v->bracketed_paste = on; break;
             case 47: case 1047: case 1049:
                 if (on && !v->alt_active) {
@@ -317,8 +322,10 @@ static void do_csi(vt_t *v, char final)
     case 'r': { int top = P(0, 1) - 1, bot = P(1, v->rows) - 1;
         if (top < 0) top = 0; if (bot >= v->rows) bot = v->rows - 1;
         if (top < bot) { v->scroll_top = top; v->scroll_bot = bot; set_cursor(v, 0, v->origin_mode ? top : 0); } break; }
-    case 's': v->saved_cx = v->cx; v->saved_cy = v->cy; break;
-    case 'u': set_cursor(v, v->saved_cx, v->saved_cy); break;
+    /* Private forms are other commands: CSI ? s saves modes, and CSI ? u,
+     * CSI > u and CSI < u query, push and pop kitty keyboard flags. */
+    case 's': if (!v->priv) { v->saved_cx = v->cx; v->saved_cy = v->cy; } break;
+    case 'u': if (!v->priv) set_cursor(v, v->saved_cx, v->saved_cy); break;
     case 't': /* window ops: report size for 18 */
         if (v->nparams && v->params[0] == 18) { char b[32]; snprintf(b, sizeof(b), "\x1b[8;%d;%dt", v->rows, v->cols); respond(v, b); }
         break;
@@ -452,7 +459,8 @@ void vt_reset(vt_t *v)
 {
     v->fg = v->bg = VT_COLOR_DEFAULT; v->attr = 0;
     v->cursor_visible = true; v->autowrap = true; v->origin_mode = false; v->insert_mode = false;
-    v->app_cursor = false; v->app_keypad = false; v->bracketed_paste = false; v->mouse = false;
+    v->app_cursor = false; v->app_keypad = false; v->bracketed_paste = false;
+    v->mouse_mode = 0; v->mouse_sgr = false;
     v->scroll_top = 0; v->scroll_bot = v->rows - 1;
     v->charset_g0 = 0; v->state = ST_GROUND; v->utf8_left = 0;
     v->screen = v->main; v->alt_active = false;
@@ -560,7 +568,27 @@ void vt_scroll_view_reset(vt_t *v) { if (v->view_off) { v->view_off = 0; mark_al
 bool vt_app_cursor(const vt_t *v) { return v->app_cursor; }
 bool vt_app_keypad(const vt_t *v) { return v->app_keypad; }
 bool vt_bracketed_paste(const vt_t *v) { return v->bracketed_paste; }
-bool vt_mouse_enabled(const vt_t *v) { return v->mouse; }
+bool vt_mouse_enabled(const vt_t *v) { return v->mouse_mode != 0; }
+
+void vt_mouse_report(vt_t *v, vt_mouse_ev_t ev, int button, int col, int row)
+{
+    if (!v->mouse_mode) return;
+    /* Motion is only reported with a button down (1002) or always (1003). */
+    if (ev == VT_MOUSE_MOTION && v->mouse_mode == 1000) return;
+    if (col < 0) col = 0; if (col >= v->cols) col = v->cols - 1;
+    if (row < 0) row = 0; if (row >= v->rows) row = v->rows - 1;
+    int code = button + (ev == VT_MOUSE_MOTION ? 32 : 0);
+    char b[32];
+    if (v->mouse_sgr) {
+        snprintf(b, sizeof(b), "\x1b[<%d;%d;%d%c", code, col + 1, row + 1, ev == VT_MOUSE_RELEASE ? 'm' : 'M');
+    } else {
+        /* X10 bytes cannot say which button was released, nor reach past 223. */
+        if (ev == VT_MOUSE_RELEASE) code = 3;
+        if (col > 222 || row > 222) return;
+        snprintf(b, sizeof(b), "\x1b[M%c%c%c", 32 + code, 33 + col, 33 + row);
+    }
+    respond(v, b);
+}
 void vt_set_write_cb(vt_t *v, vt_write_cb_t cb, void *user) { v->write_cb = cb; v->write_user = user; }
 void vt_set_bell_cb(vt_t *v, vt_bell_cb_t cb, void *user) { v->bell_cb = cb; v->bell_user = user; }
 void vt_set_title_cb(vt_t *v, vt_title_cb_t cb, void *user) { v->title_cb = cb; v->title_user = user; }

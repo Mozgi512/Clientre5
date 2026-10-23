@@ -424,6 +424,116 @@ static void terminal_box_check(int preset) {
     puts("Box drawing joins across rows; powerline frame prompt rendered.");
 }
 
+static char host_rx[512];
+static size_t host_rx_len;
+static void capture_host(const uint8_t *d,size_t n,void *u) {
+    (void)u; assert(host_rx_len+n<sizeof(host_rx));
+    memcpy(host_rx+host_rx_len,d,n); host_rx_len+=n; host_rx[host_rx_len]=0;
+}
+static void expect_host(const char *want) {
+    if(strcmp(host_rx,want)) { fprintf(stderr,"host got \"%s\"\n",host_rx); assert(0); }
+    host_rx_len=0; host_rx[0]=0;
+}
+static void terminal_herdr_check(int preset) {
+    lv_obj_t *scr=ui_screen_base(); lv_screen_load(scr);
+    fonts_set_term_line_height(32);
+    vt_t *vt=vt_create(60,10,0);
+    vt_set_write_cb(vt,capture_host,NULL);
+    term_view_t *tv=term_view_create(scr,vt,&g_term_font);
+    lv_obj_set_size(term_view_obj(tv),720,320); lv_obj_update_layout(scr);
+    term_view_set_colors(tv,lv_color_hex(0xD0D0D0),lv_color_hex(0x1E1E2E));
+    int cx,cy; bool vis;
+
+    /* herdr's start-up (src/client/terminal_setup.rs): alternate screen, kitty
+     * keyboard push and query, DECRQM 1016, DA1, mouse, paste, focus,
+     * modifyOtherKeys and no line wrap. Only DA1 is answered, the cursor stays
+     * put, and modifyOtherKeys is not taken for underline + dim. */
+    const char *setup="\033[?1049h\033[5;7H\033[s\033[1;1H\033[>1u\033[?1016$p\033[?u\033[c"
+        "\033[?1000h\033[?1002h\033[?1003h\033[?1015h\033[?1006h\033[?2004h\033[?1004h\033[>4;2m\033[?7lA";
+    vt_feed(vt,(const uint8_t *)setup,strlen(setup));
+    expect_host("\033[?62;22c");
+    vt_cursor(vt,&cx,&cy,&vis);
+    assert(cx==1 && cy==0 && vt_view_row(vt,0)[0].cp=='A' && vt_view_row(vt,0)[0].attr==0);
+    const char *restore="\033[u"; vt_feed(vt,(const uint8_t *)restore,strlen(restore));
+    vt_cursor(vt,&cx,&cy,&vis); assert(cx==6 && cy==4);
+
+    /* Mouse reports: SGR with 1006, motion only while 1002/1003 track it, X10 bytes without 1006. */
+    assert(vt_mouse_enabled(vt));
+    vt_mouse_report(vt,VT_MOUSE_PRESS,0,3,2); vt_mouse_report(vt,VT_MOUSE_RELEASE,0,3,2);
+    expect_host("\033[<0;4;3M\033[<0;4;3m");
+    vt_mouse_report(vt,VT_MOUSE_PRESS,64,3,2); vt_mouse_report(vt,VT_MOUSE_MOTION,0,5,2);
+    expect_host("\033[<64;4;3M\033[<32;6;3M");
+    /* As in xterm the tracking modes are one setting: resetting the active one stops it. */
+    const char *x10="\033[?1003l\033[?1006l"; vt_feed(vt,(const uint8_t *)x10,strlen(x10));
+    assert(!vt_mouse_enabled(vt));
+    const char *click="\033[?1000h"; vt_feed(vt,(const uint8_t *)click,strlen(click));
+    vt_mouse_report(vt,VT_MOUSE_PRESS,0,3,2); vt_mouse_report(vt,VT_MOUSE_MOTION,0,5,2);
+    vt_mouse_report(vt,VT_MOUSE_RELEASE,0,3,2);
+    expect_host("\033[M $#\033[M#$#");
+    const char *sgr="\033[?1006h"; vt_feed(vt,(const uint8_t *)sgr,strlen(sgr));
+
+    /* Touch: a tap clicks the cell under the finger, a swipe down two rows
+     * turns the wheel up twice, and nothing is sent once tracking stops. */
+    lv_indev_t *in=lv_indev_create(); lv_indev_set_type(in,LV_INDEV_TYPE_POINTER);
+    lv_indev_set_read_cb(in,pointer_read);
+    pointer_move(in,10*12+5,3*32+10,true); pointer_move(in,10*12+5,3*32+10,false);
+    expect_host("\033[<0;11;4M\033[<0;11;4m");
+    pointer_move(in,10*12+5,3*32+10,true);
+    for(int y=3*32+20;y<=3*32+10+2*32+4;y+=8) pointer_move(in,10*12+5,y,true);
+    pointer_move(in,10*12+5,3*32+10+2*32+4,false);
+    expect_host("\033[<64;11;4M\033[<64;11;4M");
+    /* A long press is a right click (herdr's close menu), with no left click
+     * on release, and the terminal menu stands aside. */
+    pointer_move(in,10*12+5,3*32+10,true);
+    for(int t=0;t<30;t++) pointer_move(in,10*12+5,3*32+10,true);
+    assert(!term_view_long_press_allowed(tv));
+    pointer_move(in,10*12+5,3*32+10,false);
+    expect_host("\033[<2;11;4M\033[<2;11;4m");
+
+    /* A herdr-like screen: sidebar with agent states, a pane and a status line. */
+    const char *screen=
+        "\033[?2004l\033[2J\033[H\033[38;2;137;180;250m┌ workspaces ──────┐\033[38;2;88;91;112m┌ claude ──────────────────────────────┐\033[0m\r\n"
+        "\033[38;2;137;180;250m│\033[0m \033[32m●\033[0m clientre5      \033[38;2;137;180;250m│\033[38;2;88;91;112m│\033[0m \033[38;2;215;119;87m✻\033[0m Reading term_view.c…               \033[38;2;88;91;112m│\033[0m\r\n"
+        "\033[38;2;137;180;250m│\033[0m \033[33m◐\033[0m nerd-fonts     \033[38;2;137;180;250m│\033[38;2;88;91;112m│\033[0m    ⎿  Read 512 lines                 \033[38;2;88;91;112m│\033[0m\r\n"
+        "\033[38;2;137;180;250m│\033[0m \033[36m✓\033[0m docs           \033[38;2;137;180;250m│\033[38;2;88;91;112m│\033[0m \033[1m●\033[0m Done. “narrow” α→β ★ ⚠ ◆ ○ ×       \033[38;2;88;91;112m│\033[0m\r\n"
+        "\033[38;2;137;180;250m│\033[0m \033[90m○\033[0m idle           \033[38;2;137;180;250m│\033[38;2;88;91;112m│\033[0m                                      \033[38;2;88;91;112m│\033[0m\r\n"
+        "\033[38;2;137;180;250m│\033[0m \033[31m×\033[0m blocked        \033[38;2;137;180;250m│\033[38;2;88;91;112m│\033[0m > 日本語の入力もそのまま             \033[38;2;88;91;112m│\033[0m\r\n"
+        "\033[38;2;137;180;250m└──────────────────┘\033[38;2;88;91;112m└──────────────────────────────────────┘\033[0m\r\n"
+        "\033[48;2;49;50;68;97m ctrl+b  v split  - split  c tab  w workspaces  ? help      \033[0m\033[?25l";
+    vt_feed(vt,(const uint8_t *)screen,strlen(screen));
+    char path[64]; snprintf(path,sizeof(path),"/tmp/clientre-herdr-%d.ppm",preset);
+    assert(snapshot(term_view_obj(tv),path)==0);
+    lv_draw_buf_t *snap=lv_snapshot_take(term_view_obj(tv),LV_COLOR_FORMAT_RGB888); assert(snap);
+    /* State icons and other one-column symbols fit their cell (Noto's own
+     * quotes are 11 px), and fill it on both sides of its middle. */
+    const uint32_t icons[]={0x25CF,0x25D0,0x2713,0x25CB,0x00D7,0x2605,0x201C,0x03B1};
+    for(size_t i=0;i<sizeof(icons)/sizeof(icons[0]);i++) {
+        lv_font_glyph_dsc_t g;
+        assert(lv_font_get_glyph_dsc(&g_term_font,&g,icons[i],0) && g.adv_w<=12);
+    }
+    lv_font_glyph_dsc_t dot; assert(lv_font_get_glyph_dsc(&g_term_font,&dot,0x25CF,0));
+    assert(dot.resolved_font->dsc==font_narrow.dsc || dot.resolved_font->dsc==font_cjk.dsc);
+    for(int row=1;row<=5;row++) {
+        bool left=false,right=false;
+        for(int y=row*32+6;y<row*32+26;y++) {
+            left|=lit(snap,2*12+2,y,0x1E1E2E)||lit(snap,2*12+3,y,0x1E1E2E);
+            right|=lit(snap,2*12+8,y,0x1E1E2E)||lit(snap,2*12+9,y,0x1E1E2E);
+        }
+        assert(left && right);
+    }
+    /* A wide character keeps its full-width glyph. */
+    lv_font_glyph_dsc_t han; assert(lv_font_get_glyph_dsc(&g_term_font,&han,0x65E5,0) && han.adv_w==24);
+    lv_draw_buf_destroy(snap);
+    const char *off="\033[?1000l"; vt_feed(vt,(const uint8_t *)off,strlen(off));
+    assert(!vt_mouse_enabled(vt));
+    pointer_move(in,10*12+5,3*32+10,true); pointer_move(in,10*12+5,3*32+10,false);
+    expect_host("");
+    lv_indev_delete(in);
+    term_view_destroy(tv); vt_destroy(vt);
+    printf("herdr start-up, mouse reports, touch clicks/right clicks/wheel and one-cell state icons passed (%s face).\n",
+           g_term_font.dsc==font_px24.dsc ? "MaruMinya" : "Noto");
+}
+
 static void terminal_palette_preview(void) {
     ui_theme_set_terminal_amber();
     assert(g_settings.term_bg==0x241200 && g_settings.term_fg==0xFF9800);
@@ -561,6 +671,7 @@ int main(int argc,char **argv) {
     if (argc>1 && !strcmp(argv[1],"cli-colors")) { terminal_palette_preview(); return 0; }
     if (argc>1 && !strcmp(argv[1],"gesture")) { gesture_check(); return 0; }
     if (argc>1 && !strcmp(argv[1],"art")) { terminal_art_check(); return 0; }
+    if (argc>1 && !strcmp(argv[1],"herdr")) { ui_theme_reinit_lvgl(); terminal_herdr_check(argc>2?atoi(argv[2]):0); return 0; }
     if (argc>1 && !strcmp(argv[1],"box")) { ui_theme_reinit_lvgl(); terminal_box_check(argc>2?atoi(argv[2]):0); return 0; }
     if (argc>1 && !strcmp(argv[1],"nerd")) { ui_theme_reinit_lvgl(); terminal_nerd_check(argc>2?atoi(argv[2]):0); return 0; }
     if (argc>1 && !strcmp(argv[1],"terminal")) { terminal_spacing_check(); return 0; }

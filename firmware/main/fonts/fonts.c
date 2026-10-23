@@ -1,5 +1,6 @@
 #include "fonts.h"
 #include "settings/settings.h"
+#include "term/vt.h"
 
 /* U+23F5 BLACK MEDIUM RIGHT-POINTING TRIANGLE, one terminal cell. */
 static const uint8_t term_symbol_bitmap[] = {0x40,0x6,0x0,0x70,0x7,0x80,0x7c,0x7,0xe0,0x7f,0x7,0xf8,0x7f,0x87,0xf0,0x7e,0x7,0xc0,0x78,0x7,0x0,0x60,0x4,0x0};
@@ -20,30 +21,45 @@ static lv_font_t s_term_symbols = {
 
 /* The generated fonts live in flash (const). LVGL stores the fallback pointer
  * inside lv_font_t, so we work on RAM copies. */
-static lv_font_t s_px20, s_px24, s_px36b, s_cjk, s_mont22, s_mont30, s_icons, s_nerd;
+static lv_font_t s_px20, s_px24, s_px36b, s_cjk, s_mont22, s_mont30, s_icons, s_nerd, s_narrow;
 
-/* Nerd Font icons are centred half an em above the baseline, the middle of the
- * MaruMinya box; the Noto box sits lower, so the terminal font moves them. */
-static int32_t s_nerd_shift;
+/* The one-cell faces (Nerd Font icons, narrow symbols) are centred half an em
+ * above the baseline, the middle of the MaruMinya box; the Noto box sits
+ * lower, so the terminal font moves them. */
+static int32_t s_cell_shift;
+static int32_t s_term_cell_w = 12;
 
 static bool nerd_private_use(uint32_t cp)
 {
     return (cp >= 0xE000 && cp <= 0xF8FF) || cp >= 0xF0000;
 }
 
-static bool nerd_glyph_dsc(const lv_font_t *font, lv_font_glyph_dsc_t *g, uint32_t cp, uint32_t next)
+static bool cell_glyph_dsc(const lv_font_t *font, lv_font_glyph_dsc_t *g, uint32_t cp, uint32_t next)
 {
     if (!lv_font_get_glyph_dsc_fmt_txt(font, g, cp, next)) return false;
-    g->ofs_y += s_nerd_shift;
+    g->ofs_y += s_cell_shift;
     return true;
 }
 
-/* MaruMinya has private-use glyphs of its own at U+E000-E04F. In the terminal
- * those codepoints mean Nerd Font icons, so the base face yields them. */
+/* Narrow symbols are for one-column characters only: a wide one keeps the
+ * full-width glyph of the CJK face behind. */
+static bool narrow_glyph_dsc(const lv_font_t *font, lv_font_glyph_dsc_t *g, uint32_t cp, uint32_t next)
+{
+    return vt_wcwidth(cp) == 1 && cell_glyph_dsc(font, g, cp, next);
+}
+
+/* The base face yields two kinds of glyph to the faces behind it: MaruMinya's
+ * own private-use glyphs at U+E000-E04F, which in a terminal mean Nerd Font
+ * icons, and full-width glyphs of one-column characters (● ◐ ★ “ α ...), which
+ * the cell clip would cut in half and the narrow face draws in one cell. */
 static bool term_glyph_dsc(const lv_font_t *font, lv_font_glyph_dsc_t *g, uint32_t cp, uint32_t next)
 {
-    if (nerd_private_use(cp) && lv_font_get_glyph_dsc_fmt_txt(&s_nerd, g, cp, 0)) return false;
-    return lv_font_get_glyph_dsc_fmt_txt(font, g, cp, next);
+    lv_font_glyph_dsc_t other;
+    if (nerd_private_use(cp) && lv_font_get_glyph_dsc_fmt_txt(&s_nerd, &other, cp, 0)) return false;
+    if (!lv_font_get_glyph_dsc_fmt_txt(font, g, cp, next)) return false;
+    if (cp >= 0x80 && g->adv_w > s_term_cell_w && vt_wcwidth(cp) == 1 &&
+        lv_font_get_glyph_dsc_fmt_txt(&s_narrow, &other, cp, 0)) return false;
+    return true;
 }
 
 static bool s_terminal_pixel = true;
@@ -107,7 +123,9 @@ void fonts_init(void)
     s_px20 = font_px20; s_px24 = font_px24; s_px36b = font_px36b;
     s_cjk = font_cjk; s_mont22 = lv_font_montserrat_22; s_mont30 = lv_font_montserrat_30;
     s_nerd = font_nerd;
-    s_nerd.get_glyph_dsc = nerd_glyph_dsc;
+    s_nerd.get_glyph_dsc = cell_glyph_dsc;
+    s_narrow = font_narrow;
+    s_narrow.get_glyph_dsc = narrow_glyph_dsc;
     /* MaruMinya covers Japanese, so the simplified and traditional Chinese
      * of the zh translations falls through to Noto, and the LVGL icon glyphs
      * to Montserrat behind it. Noto Sans Mono CJK at 24 px advances 12 px, the
@@ -130,10 +148,12 @@ void fonts_set_term_line_height(int target)
     g_term_font.base_line = base->base_line - delta / 2;
     if (g_term_font.base_line < 0) g_term_font.base_line = 0;
     g_term_font.get_glyph_dsc = term_glyph_dsc;
-    /* Centre the icons on the cell: its middle is this far above the baseline,
-     * the icons' 12 px (half of the 24 px em, see tools/nerd_cell.py). */
-    s_nerd_shift = (g_term_font.line_height - g_term_font.base_line) - g_term_font.line_height / 2 - 12;
-    s_nerd.fallback = &s_cjk;
+    s_term_cell_w = lv_font_get_glyph_width(base, 'M', 0);
+    /* Centre the one-cell faces on the cell: its middle is this far above the
+     * baseline, theirs 12 px (half of the 24 px em, see tools/nerd_cell.py). */
+    s_cell_shift = (g_term_font.line_height - g_term_font.base_line) - g_term_font.line_height / 2 - 12;
+    s_narrow.fallback = &s_cjk;
+    s_nerd.fallback = &s_narrow;
     s_term_symbols.fallback = &s_nerd;
     g_term_font.fallback = &s_term_symbols;
 }

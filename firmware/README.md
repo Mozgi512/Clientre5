@@ -127,6 +127,16 @@ has not been measured on hardware.
   Unicode character names, so powerlevel10k's `╭─`/`╰─` frame, tmux and htop borders stay joined
   across the row spacing. The solid triangles ▲▶▼◀, ▴▸▾◂ and ►◄ used as prompt characters are
   drawn to fit one cell, since the CJK faces give them a 24 px glyph the cell would cut in half.
+* **One-column symbols**: MaruMinya and Noto Sans CJK draw many characters a terminal gives one
+  column -- ● ○ ◐ ★ ⚠ “ ” α → and the rest of the East Asian ambiguous set -- 24 px wide, so the
+  cell clip used to keep only their left half (herdr's agent states, Claude Code's bullets). The
+  terminal font hands those to `font_narrow`, DejaVu Sans Mono fitted to one cell; a glyph wider
+  than its cells that no face has narrow loses both edges evenly instead.
+* **Mouse**: with tracking on (`?1000h`, `?1002h`, `?1003h`; SGR `?1006h` or X10 bytes) a tap is sent
+  as a left click on the cell under the finger, a long press as a right click (herdr's close and
+  split menus) and a vertical swipe as one wheel notch per row. The terminal menu then stays shut;
+  its actions are on the status bar close button, Ctrl+Space and the control bar. Private `CSI ? u` / `CSI > u` (kitty keyboard query
+  and push, sent by herdr and other crossterm programs) no longer restore the cursor.
 
 ## Tailscale (tailnet SSH)
 
@@ -170,7 +180,8 @@ cannot use `autogroup:member` or a user as `dst` when the source is a tag).
 author, hicc), or accepts a TTF path. `gen_fonts.sh` needs `NotoSansMonoCJKjp-Regular.otf` and
 `DejaVuSansMono.ttf` in the supplied directory. `gen_nerd_font.sh` takes
 `SymbolsNerdFontMono-Regular.ttf` from `NerdFontsSymbolsOnly.zip` of a
-[Nerd Fonts release](https://github.com/ryanoasis/nerd-fonts/releases) (v3.5.1 is committed).
+[Nerd Fonts release](https://github.com/ryanoasis/nerd-fonts/releases) (v3.5.1 is committed), and
+`gen_narrow_font.sh` the `DejaVuSansMono.ttf` of [DejaVu 2.37](https://github.com/dejavu-fonts/dejavu-fonts/releases).
 
 ```sh
 npm i lv_font_conv                                  # once
@@ -178,6 +189,7 @@ pip3 install fonttools                              # once
 sh tools/gen_pixel_fonts.sh              # the UI and terminal faces
 sh tools/gen_fonts.sh       <font dir> [SKK-JISYO.M]  # the CJK/symbol fallback
 sh tools/gen_nerd_font.sh   <SymbolsNerdFontMono-Regular.ttf>  # terminal icons (takes ~10 min)
+sh tools/gen_narrow_font.sh <DejaVuSansMono.ttf>  # one-column symbols for the terminal
 python3 tools/skk2bin.py skk    SKK-JISYO.M main/ime/dict/skk_m.bin
 python3 tools/skk2bin.py pinyin managed_components/lvgl__lvgl/src/widgets/ime/lv_ime_pinyin.c main/ime/dict/pinyin.bin
 ```

@@ -14,6 +14,7 @@ struct term_view {
     uint32_t blink_tick; bool blink_on;
     lv_timer_t *blink_timer;
     lv_point_t press; int press_view; bool dragging;
+    bool long_pressed; int wheel_rows;   /* gesture state while the host tracks the mouse */
     term_cursor_t cursor_style; bool cursor_blink; lv_color_t cursor_col; bool cursor_col_set;
 };
 
@@ -344,12 +345,19 @@ static void draw_cb(lv_event_t *e)
                     (c0->fg == 0xD77A56 || c0->fg == 0xD77757) && cp >= 0x2580 && cp <= 0x259F)
                     art_fg = lv_color_hex(g_settings.term_fg);
                 if (draw_cell_art(layer,cp,&ta,art_fg)) { i+=width; continue; }
-                int n=0;
+                int n=0; int32_t label_dx=0;
                 if (cp >= 0x20 && cp < 0x7f) {
                     do { txt[n++]=(char)(row[i].cp ? row[i].cp : ' '); i++; }
                     while (i<x1 && row[i].cp>=0x20 && row[i].cp<0x7f && !(row[i].attr & VT_ATTR_WIDE_CONT));
                     ta.x2=obj_area.x1+i*tv->cell_w-1;
-                } else { n=utf8_put(cp,txt); i+=width; }
+                } else {
+                    n=utf8_put(cp,txt); i+=width;
+                    /* A glyph still wider than its cells loses both edges
+                     * evenly rather than its whole right half. */
+                    lv_font_glyph_dsc_t g;
+                    int32_t span=lv_area_get_width(&ta);
+                    if (lv_font_get_glyph_dsc(tv->font,&g,cp,0) && g.adv_w>span) label_dx=(g.adv_w-span)/2;
+                }
                 txt[n]=0; ld.text=txt;
                 /* No line wrapping: glyph overhang must not create another row. */
                 ld.flag=LV_TEXT_FLAG_EXPAND;
@@ -358,7 +366,8 @@ static void draw_cb(lv_event_t *e)
                                        LV_MIN(saved_clip.x2,ta.x2), LV_MIN(saved_clip.y2,ta.y2)};
                 if (cell_clip.x1 <= cell_clip.x2 && cell_clip.y1 <= cell_clip.y2) {
                     layer->_clip_area = cell_clip;
-                    lv_draw_label(layer,&ld,&ta);
+                    lv_area_t la=ta; la.x1-=label_dx;
+                    lv_draw_label(layer,&ld,&la);
                     layer->_clip_area = saved_clip;
                 }
             }
@@ -398,6 +407,10 @@ static void blink_cb(lv_timer_t *t)
     lv_obj_invalidate_area(tv->obj, &a);
 }
 
+/* With mouse tracking on (herdr, vim, htop ...) a tap is a left click, a long
+ * press a right click (herdr's close / split menus) and a vertical swipe turns
+ * the wheel one notch per row. Otherwise a swipe scrolls the local scrollback
+ * and a long press opens the terminal menu. */
 static void touch_cb(lv_event_t *e)
 {
     term_view_t *tv = lv_event_get_user_data(e);
@@ -405,8 +418,13 @@ static void touch_cb(lv_event_t *e)
     lv_indev_t *indev = lv_indev_active();
     if (!indev || !tv->vt) return;
     lv_point_t p; lv_indev_get_point(indev, &p);
-    if (code == LV_EVENT_PRESSED) { tv->press = p; tv->press_view = vt_view_offset(tv->vt); tv->dragging = false; }
-    else if (code == LV_EVENT_PRESSING) {
+    bool mouse = vt_mouse_enabled(tv->vt) && vt_view_offset(tv->vt) == 0;
+    lv_area_t oa; lv_obj_get_coords(tv->obj, &oa);
+    int col = (tv->press.x - oa.x1) / tv->cell_w, row = (tv->press.y - oa.y1) / tv->cell_h;
+    if (code == LV_EVENT_PRESSED) {
+        tv->press = p; tv->press_view = vt_view_offset(tv->vt); tv->dragging = false;
+        tv->long_pressed = false; tv->wheel_rows = 0;
+    } else if (code == LV_EVENT_PRESSING) {
         int dx = p.x - tv->press.x;
         int dy = p.y - tv->press.y;
         /* Mark the gesture as a drag as soon as it exceeds normal touch jitter.
@@ -415,9 +433,26 @@ static void touch_cb(lv_event_t *e)
         if (abs(dx) > TERM_DRAG_SLOP || abs(dy) > TERM_DRAG_SLOP) {
             tv->dragging = true;
             int lines = dy / tv->cell_h;
+            if (mouse) {
+                /* Finger down shows earlier lines, as the scrollback does: wheel up. */
+                for (; tv->wheel_rows < lines; tv->wheel_rows++) vt_mouse_report(tv->vt, VT_MOUSE_PRESS, 64, col, row);
+                for (; tv->wheel_rows > lines; tv->wheel_rows--) vt_mouse_report(tv->vt, VT_MOUSE_PRESS, 65, col, row);
+                return;
+            }
             int target = tv->press_view + lines;
             int cur = vt_view_offset(tv->vt);
             if (target != cur) { vt_scroll_view(tv->vt, target - cur); lv_obj_invalidate(tv->obj); }
+        }
+    } else if (code == LV_EVENT_LONG_PRESSED) {
+        tv->long_pressed = true;
+        if (mouse && !tv->dragging) {
+            vt_mouse_report(tv->vt, VT_MOUSE_PRESS, 2, col, row);
+            vt_mouse_report(tv->vt, VT_MOUSE_RELEASE, 2, col, row);
+        }
+    } else if (code == LV_EVENT_RELEASED) {
+        if (mouse && !tv->dragging && !tv->long_pressed) {
+            vt_mouse_report(tv->vt, VT_MOUSE_PRESS, 0, col, row);
+            vt_mouse_report(tv->vt, VT_MOUSE_RELEASE, 0, col, row);
         }
     }
 }
@@ -451,6 +486,8 @@ term_view_t *term_view_create(lv_obj_t *parent, vt_t *vt, const lv_font_t *font)
     lv_obj_add_event_cb(tv->obj, draw_cb, LV_EVENT_DRAW_MAIN, tv);
     lv_obj_add_event_cb(tv->obj, touch_cb, LV_EVENT_PRESSED, tv);
     lv_obj_add_event_cb(tv->obj, touch_cb, LV_EVENT_PRESSING, tv);
+    lv_obj_add_event_cb(tv->obj, touch_cb, LV_EVENT_LONG_PRESSED, tv);
+    lv_obj_add_event_cb(tv->obj, touch_cb, LV_EVENT_RELEASED, tv);
     lv_obj_add_event_cb(tv->obj, delete_cb, LV_EVENT_DELETE, tv);
     tv->blink_timer = lv_timer_create(blink_cb, 550, tv);
     return tv;
@@ -510,7 +547,8 @@ int term_view_cell_h(term_view_t *tv) { return tv->cell_h; }
 
 bool term_view_long_press_allowed(term_view_t *tv)
 {
-    if (!tv || tv->dragging) return false;
+    /* While the host tracks the mouse the long press is its right click. */
+    if (!tv || tv->dragging || (tv->vt && vt_mouse_enabled(tv->vt) && vt_view_offset(tv->vt) == 0)) return false;
     lv_indev_t *indev = lv_indev_active();
     if (!indev) return false;
     lv_point_t p;

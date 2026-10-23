@@ -13,6 +13,7 @@ Tab5 を単体で使える端末に変えます。物理キーボード中心の
 - **SSH ターミナル**: VT100 / xterm-256color 互換、スクロールバック、全角 CJK 文字対応。
   [Nerd Fonts](https://www.nerdfonts.com/) のアイコンと Powerline 記号を内蔵しているので、
   oh-my-zsh・powerlevel10k・Starship などのプロンプトもそのまま表示できます。
+  マウス対応の TUI（[herdr](https://herdr.dev/)、vim、htop など）では、タップが左クリック、長押しが右クリック、スワイプがホイールになります。
   パスワード・公開鍵・キーボードインタラクティブ認証。ホスト鍵は初回接続時に確認して保存します。
 - **日本語入力**: ローマ字→かな、SKK 辞書によるかな漢字変換（SKK-JISYO.M 内蔵、TF カードの
   SKK-JISYO.L も利用可）。UI が中国語のときは拼音入力も使えます。`Ctrl+Space` または `A/あ` キーで切替。

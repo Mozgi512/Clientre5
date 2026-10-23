@@ -56,6 +56,11 @@ bool vt_app_cursor(const vt_t *vt);
 bool vt_app_keypad(const vt_t *vt);
 bool vt_bracketed_paste(const vt_t *vt);
 bool vt_mouse_enabled(const vt_t *vt);
+/* Reports a pointer event to the host when it enabled mouse tracking.
+ * button: 0 left, 1 middle, 2 right, 64 wheel up, 65 wheel down; the wheel
+ * only sends presses. col and row are 0-based cells. */
+typedef enum { VT_MOUSE_PRESS, VT_MOUSE_RELEASE, VT_MOUSE_MOTION } vt_mouse_ev_t;
+void vt_mouse_report(vt_t *vt, vt_mouse_ev_t ev, int button, int col, int row);
 void vt_set_write_cb(vt_t *vt, vt_write_cb_t cb, void *user);
 void vt_set_bell_cb(vt_t *vt, vt_bell_cb_t cb, void *user);
 void vt_set_title_cb(vt_t *vt, vt_title_cb_t cb, void *user);
