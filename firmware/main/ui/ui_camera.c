@@ -105,19 +105,30 @@ lv_obj_t *ui_camera_create(void *arg)
     lv_obj_set_style_pad_all(content, 0, 0);
     lv_obj_set_scrollbar_mode(content, LV_SCROLLBAR_MODE_OFF);
 
+    /* The camera and the panel are both fixed to the device, so the picture
+     * on the panel must not turn with the UI. The sensor frame is upright at
+     * the default 90° rotation (landscape, USB-C on the left); every other UI
+     * rotation turns content counter-clockwise by a further quarter turn per
+     * step, which the camera undoes before the UI draws the frame. */
+    unsigned turns = (1U - (unsigned)lv_display_get_rotation(NULL)) & 3U;
+    camera_set_rotation(turns);
+    uint32_t frame_w = (turns & 1U) ? PREVIEW_HEIGHT : PREVIEW_WIDTH;
+    uint32_t frame_h = (turns & 1U) ? PREVIEW_WIDTH : PREVIEW_HEIGHT;
     s_camera.pixels = calloc(PREVIEW_WIDTH * PREVIEW_HEIGHT, 2);
     if (s_camera.pixels) {
         s_camera.descriptor.header.magic = LV_IMAGE_HEADER_MAGIC;
         s_camera.descriptor.header.cf = LV_COLOR_FORMAT_RGB565;
-        s_camera.descriptor.header.w = PREVIEW_WIDTH;
-        s_camera.descriptor.header.h = PREVIEW_HEIGHT;
-        s_camera.descriptor.header.stride = PREVIEW_WIDTH * 2;
+        s_camera.descriptor.header.w = frame_w;
+        s_camera.descriptor.header.h = frame_h;
+        s_camera.descriptor.header.stride = frame_w * 2;
         s_camera.descriptor.data = s_camera.pixels;
         s_camera.descriptor.data_size = PREVIEW_WIDTH * PREVIEW_HEIGHT * 2;
         s_camera.image = lv_image_create(content);
         lv_image_set_src(s_camera.image, &s_camera.descriptor);
+        int32_t available_w = lv_display_get_horizontal_resolution(NULL);
         int32_t available_h = lv_display_get_vertical_resolution(NULL) - UI_TOPBAR_H - 8;
-        uint32_t scale = LV_MIN(256U, (uint32_t)available_h * 256U / PREVIEW_HEIGHT);
+        uint32_t scale = LV_MIN(256U, LV_MIN((uint32_t)available_w * 256U / frame_w,
+                                             (uint32_t)available_h * 256U / frame_h));
         lv_image_set_scale(s_camera.image, scale);
         lv_obj_center(s_camera.image);
         lv_obj_add_flag(s_camera.image, LV_OBJ_FLAG_CLICKABLE);

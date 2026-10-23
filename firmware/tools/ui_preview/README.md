@@ -111,3 +111,14 @@ is answered, the cursor stays put and no attributes change; then checks SGR and 
 that a real tap, long press and swipe on the view arrive as a left click, a right click and wheel notches, and that a herdr-like
 sidebar draws its state icons ● ◐ ✓ ○ × and other one-column symbols inside their cells. Writes
 `/tmp/clientre-herdr-<preset>.ppm`.
+
+## Camera rotation
+
+```sh
+./preview camera-rotation 0 720 1280
+```
+
+Opens the camera at every UI rotation and checks that it asks the camera driver for the quarter turn
+that keeps the picture still on the panel (the sensor frame is upright at the default 90°) and that
+the turned frame fits the screen. Writes `/tmp/clientre-camera-rot<rotation>.ppm`. The stub returns
+an already turned frame; the PPA rotation, mirroring and JPEG byte order need a real Tab5.

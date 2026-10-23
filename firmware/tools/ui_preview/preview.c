@@ -71,15 +71,19 @@ SCREEN(ui_usb_create) SCREEN(ui_ota_create) SCREEN(ui_devinfo_create)
 SCREEN(ui_server_form_create) SCREEN(ui_lang_create)
 SCREEN(ui_backup_create)
 bool camera_start(void) { return true; }
+static unsigned camera_turns;
+void camera_set_rotation(unsigned t) { camera_turns=t&3; }
 void camera_stop(void) {}
 camera_state_t camera_state(void) { return CAMERA_STATE_RUNNING; }
 const char *camera_error(void) { return ""; }
 bool camera_copy_frame(void *dst,size_t cap,uint32_t *w,uint32_t *h,uint32_t *seq) {
     if(cap<1280U*720U*2U) return false;
+    /* A frame already turned as camera_set_rotation() asked, like the PPA does. */
     uint16_t *pixels=dst;
-    for(unsigned y=0;y<720;y++) for(unsigned x=0;x<1280;x++)
-        pixels[y*1280+x]=(uint16_t)((((x*31)/1279)<<11)|(((y*63)/719)<<5)|((x+y)&31));
-    if(w)*w=1280; if(h)*h=720; if(seq)(*seq)++;
+    unsigned fw=(camera_turns&1)?720:1280, fh=(camera_turns&1)?1280:720;
+    for(unsigned y=0;y<fh;y++) for(unsigned x=0;x<fw;x++)
+        pixels[y*fw+x]=(uint16_t)((((x*31)/(fw-1))<<11)|(((y*63)/(fh-1))<<5)|((x+y)&31));
+    if(w)*w=fw; if(h)*h=fh; if(seq)(*seq)++;
     return true;
 }
 bool camera_take_photo(void) { return true; }
@@ -534,6 +538,29 @@ static void terminal_herdr_check(int preset) {
            g_term_font.dsc==font_px24.dsc ? "MaruMinya" : "Noto");
 }
 
+/* The camera frame is upright at the default 90° UI rotation; every other
+ * rotation asks the camera for the turn that keeps the picture still on the
+ * panel, and the preview fits the turned frame on screen. */
+static void camera_rotation_check(lv_display_t *d) {
+    for(int r=0;r<4;r++) {
+        lv_display_set_rotation(d,(lv_display_rotation_t)r);
+        ui_nav_push(ui_camera_create,NULL); step(d,300);
+        assert(camera_turns==((1U-(unsigned)r)&3U));
+        lv_obj_t *scr=lv_screen_active();
+        lv_obj_t *content=lv_obj_get_child(scr,1), *img=lv_obj_get_child(content,0);
+        lv_area_t a; lv_obj_get_coords(img,&a);
+        int32_t sw=lv_display_get_horizontal_resolution(d), sh=lv_display_get_vertical_resolution(d);
+        int32_t scale=lv_image_get_scale(img);
+        int32_t vw=lv_image_get_src_width(img)*scale/256, vh=lv_image_get_src_height(img)*scale/256;
+        assert(vw<=sw && vh<=sh && (vw==sw || vh>=sh-UI_TOPBAR_H-8-2));
+        assert((r&1) ? lv_image_get_src_width(img)==1280 : lv_image_get_src_width(img)==720);
+        char path[64]; snprintf(path,sizeof(path),"/tmp/clientre-camera-rot%d.ppm",r);
+        assert(snapshot(scr,path)==0);
+        ui_nav_back(); step(d,300);
+    }
+    puts("Camera: the preview turns against every UI rotation and fits the screen.");
+}
+
 static void terminal_palette_preview(void) {
     ui_theme_set_terminal_amber();
     assert(g_settings.term_bg==0x241200 && g_settings.term_fg==0xFF9800);
@@ -636,6 +663,7 @@ int main(int argc,char **argv) {
         ui_nav_push(ui_camera_create,NULL); step(d,500);
         return snapshot(lv_screen_active(),"screen.ppm");
     }
+    if (argc>1 && !strcmp(argv[1],"camera-rotation")) { camera_rotation_check(d); return 0; }
     if (argc>1 && !strcmp(argv[1],"font-policy")) { font_policy_check(d); return 0; }
     if (argc>1 && !strcmp(argv[1],"standby")) {
         lv_indev_t *pointer=lv_indev_create(); lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);
