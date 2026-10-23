@@ -1,9 +1,9 @@
 {
   "project": "clientre5",
-  "version": "1.0",
+  "version": "1.1",
   "url": "https://github.com/Mozgi512/Clientre5/releases/latest/download/clientre5.bin",
-  "sha256": "a48850afecb2fa8bfad6cd50cf0a94fa8d41577219fe7b49924853fa816afa96",
-  "size": 8443040,
+  "sha256": "574a41143c0f0aea9a05809c891cd024a1aa820fd5cef39c1b4d97e86a775dcf",
+  "size": 9063184,
   "notes": "",
   "updater": {
     "version": "1.0.0",
