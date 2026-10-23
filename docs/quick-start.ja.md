@@ -80,6 +80,9 @@ WiFi 経由で大きなファイルを多数アップロードすると不安定
   MaruMinyaを整数倍のピクセル表示にします。中国語は画面内で書体が混ざらないよう、英数字も含めて
   Noto CJKに統一します。Dark / Light / Nord / Solarized / Gruvbox / Classicでは通常の滑らかな
   MontserratまたはNoto CJKへ切り替わり、SSH端末も滑らかな等幅CJK書体になります。
+- **Nerd Fonts のアイコン**は、どのテーマでも SSH 端末に内蔵しています。powerlevel10k・Starship・
+  oh-my-zsh の agnoster などのプロンプトは、Tab5 側の設定なしでアイコンと Powerline の矢印を表示します。
+  接続先でプロンプトの設定を聞かれたら（`p10k configure` など）、Nerd Font / Powerline 向けの表示を選んでください。
 - **外観**（設定 → 画面 → 外観）: 既定は **Orange EL**（黒地・アンバー文字・角丸なし・発光・走査線）。
   ほかに Retro CRT（グリーン蛍光体）、Pixel、Dark、Light、Nord、Solarized Dark、Gruvbox、Classic。
   8 色の個別指定、角の丸み、余白の密度、発光、走査線、タイル配色、

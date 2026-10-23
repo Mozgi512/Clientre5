@@ -33,21 +33,238 @@ static lv_color_t col_of(term_view_t *tv, uint32_t c, bool fg)
     return lv_color_hex(c);
 }
 
+/* Narrow the layer's clip to one cell for shapes drawn past its edges;
+ * false when the cell is not visible at all. */
+static bool clip_to_cell(lv_layer_t *layer, const lv_area_t *cell, lv_area_t *saved_clip)
+{
+    *saved_clip = layer->_clip_area;
+    lv_area_t cell_clip = {LV_MAX(saved_clip->x1, cell->x1), LV_MAX(saved_clip->y1, cell->y1),
+                           LV_MIN(saved_clip->x2, cell->x2), LV_MIN(saved_clip->y2, cell->y2)};
+    if (cell_clip.x1 > cell_clip.x2 || cell_clip.y1 > cell_clip.y2) return false;
+    layer->_clip_area = cell_clip;
+    return true;
+}
+
+/* Powerline separators U+E0B0-E0BF: prompt segments must meet edge to edge,
+ * so draw them over the whole cell rather than the 24 px glyph box. */
+static bool draw_powerline(lv_layer_t *layer, uint32_t cp, const lv_area_t *cell, lv_color_t color)
+{
+    if (cp < 0xE0B0 || cp > 0xE0BF) return false;
+    int32_t l = cell->x1, r = cell->x2 + 1, t = cell->y1, b = cell->y2 + 1, m = (t + b) / 2;
+    int w = lv_area_get_width(cell);
+    lv_area_t saved_clip;
+    if (!clip_to_cell(layer, cell, &saved_clip)) return true;
+    /* Corners of the solid shapes: arrows, then the four diagonal halves. */
+    static const struct { uint16_t cp; uint8_t pts[6]; } solid[] = {
+        {0xE0B0, {0,0, 0,2, 2,1}}, {0xE0B2, {2,0, 2,2, 0,1}},
+        {0xE0B8, {0,0, 0,2, 2,2}}, {0xE0BA, {2,0, 2,2, 0,2}},
+        {0xE0BC, {0,0, 2,0, 0,2}}, {0xE0BE, {0,0, 2,0, 2,2}},
+    };
+    const int32_t xs[] = {l, 0, r}, ys[] = {t, m, b};
+    for (size_t i = 0; i < sizeof(solid) / sizeof(solid[0]); i++) {
+        if (solid[i].cp != cp) continue;
+        lv_draw_triangle_dsc_t d; lv_draw_triangle_dsc_init(&d);
+        d.color = color; d.opa = LV_OPA_COVER;
+        for (int k = 0; k < 3; k++) {
+            d.p[k].x = xs[solid[i].pts[2 * k]];
+            d.p[k].y = ys[solid[i].pts[2 * k + 1]];
+        }
+        lv_draw_triangle(layer, &d);
+        layer->_clip_area = saved_clip;
+        return true;
+    }
+    if (cp >= 0xE0B4 && cp <= 0xE0B7) {
+        /* Half of a stadium twice the cell's width, clipped to the cell. */
+        lv_draw_rect_dsc_t d; lv_draw_rect_dsc_init(&d);
+        d.radius = LV_RADIUS_CIRCLE;
+        bool thin = cp & 1;
+        d.bg_color = color; d.bg_opa = thin ? LV_OPA_TRANSP : LV_OPA_COVER;
+        d.border_color = color; d.border_width = thin ? 1 : 0; d.border_opa = LV_OPA_COVER;
+        lv_area_t a = *cell;
+        if (cp <= 0xE0B5) a.x1 -= w; else a.x2 += w;
+        lv_draw_rect(layer, &d, &a);
+        layer->_clip_area = saved_clip;
+        return true;
+    }
+    /* Thin chevrons and slashes. */
+    lv_draw_line_dsc_t d; lv_draw_line_dsc_init(&d);
+    d.color = color; d.opa = LV_OPA_COVER; d.width = 1;
+    lv_point_precise_t p[3]; int n = 2;
+    if (cp == 0xE0B1) { p[0] = (lv_point_precise_t){l, t}; p[1] = (lv_point_precise_t){r - 1, m}; p[2] = (lv_point_precise_t){l, b}; n = 3; }
+    else if (cp == 0xE0B3) { p[0] = (lv_point_precise_t){r - 1, t}; p[1] = (lv_point_precise_t){l, m}; p[2] = (lv_point_precise_t){r - 1, b}; n = 3; }
+    else if (cp == 0xE0B9 || cp == 0xE0BF) { p[0] = (lv_point_precise_t){l, t}; p[1] = (lv_point_precise_t){r, b}; }
+    else { p[0] = (lv_point_precise_t){l, b}; p[1] = (lv_point_precise_t){r, t}; }   /* E0BB, E0BD */
+    for (int k = 0; k + 1 < n; k++) { d.p1 = p[k]; d.p2 = p[k + 1]; lv_draw_line(layer, &d); }
+    layer->_clip_area = saved_clip;
+    return true;
+}
+
+/* Box drawing U+2500-257F, generated from the Unicode character names: two
+ * bits per arm, up | right << 2 | down << 4 | left << 6, each 0 none, 1 light,
+ * 2 heavy or 3 double. Dashes, arcs and diagonals are 0 and drawn apart. */
+static const uint8_t s_box_arms[128] = {
+    0x44,0x88,0x11,0x22,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x14,0x18,0x24,0x28,
+    0x50,0x90,0x60,0xA0,0x05,0x09,0x06,0x0A,0x41,0x81,0x42,0x82,0x15,0x19,0x16,0x25,
+    0x26,0x1A,0x29,0x2A,0x51,0x91,0x52,0x61,0x62,0x92,0xA1,0xA2,0x54,0x94,0x58,0x98,
+    0x64,0xA4,0x68,0xA8,0x45,0x85,0x49,0x89,0x46,0x86,0x4A,0x8A,0x55,0x95,0x59,0x99,
+    0x56,0x65,0x66,0x96,0x5A,0xA5,0x69,0x9A,0xA9,0xA6,0x6A,0xAA,0x00,0x00,0x00,0x00,
+    0xCC,0x33,0x1C,0x34,0x3C,0xD0,0x70,0xF0,0x0D,0x07,0x0F,0xC1,0x43,0xC3,0x1D,0x37,
+    0x3F,0xD1,0x73,0xF3,0xDC,0x74,0xFC,0xCD,0x47,0xCF,0xDD,0x77,0xFF,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x40,0x01,0x04,0x10,0x80,0x02,0x08,0x20,0x48,0x21,0x84,0x12,
+};
+enum { BOX_UP, BOX_RIGHT, BOX_DOWN, BOX_LEFT };
+
+/* A light or heavy line through centre c covers [c, c + weight - 1]; a
+ * double line is two light strokes at c - 1 and c + 1. */
+static int32_t box_lo(int weight, int32_t c) { return weight == 3 ? c - 1 : c; }
+static int32_t box_hi(int weight, int32_t c) { return weight == 3 ? c + 1 : c + weight - 1; }
+
+static void box_fill(lv_layer_t *layer, const lv_draw_rect_dsc_t *d, int32_t x1, int32_t y1, int32_t x2, int32_t y2)
+{
+    lv_area_t a = {LV_MIN(x1, x2), LV_MIN(y1, y2), LV_MAX(x1, x2), LV_MAX(y1, y2)};
+    lv_draw_rect(layer, d, &a);
+}
+
+/* One arm from the cell edge `far` to the centre. `c` is the centre along the
+ * arm, `c_cross` across it; `opposite` is the weight of the arm continuing it
+ * and cross[0] / cross[1] those of the perpendicular arms on the low / high
+ * side (up / down for a horizontal arm, left / right for a vertical one). */
+static void box_arm(lv_layer_t *layer, const lv_draw_rect_dsc_t *d, bool horizontal, bool toward_low,
+                    int weight, int opposite, const int *cross, int32_t c, int32_t c_cross, int32_t far)
+{
+    int32_t cross_lo = INT32_MAX, cross_hi = INT32_MIN;
+    for (int k = 0; k < 2; k++) if (cross[k]) {
+        cross_lo = LV_MIN(cross_lo, box_lo(cross[k], c));
+        cross_hi = LV_MAX(cross_hi, box_hi(cross[k], c));
+    }
+    if (weight != 3) {
+        /* Through lines meet at the centre; a tee stops at the nearest
+         * perpendicular stroke, a corner reaches the farthest one. */
+        int32_t end = c;
+        if (!opposite && cross[0] && cross[1]) end = toward_low ? cross_lo : cross_hi;
+        else if (!opposite && (cross[0] || cross[1])) end = toward_low ? cross_hi : cross_lo;
+        if (horizontal) box_fill(layer, d, far, c_cross, end, c_cross + weight - 1);
+        else box_fill(layer, d, c_cross, far, c_cross + weight - 1, end);
+        return;
+    }
+    for (int s = 0; s < 2; s++) {
+        /* Each stroke of a double arm stops short of a perpendicular arm on
+         * its own side and runs on to the far edge of one on the other side. */
+        int same = cross[s], other = cross[1 - s];
+        int32_t end = c;
+        if (same) end = toward_low ? box_lo(same, c) : box_hi(same, c);
+        else if (other) end = toward_low ? box_hi(other, c) : box_lo(other, c);
+        int32_t at = c_cross + (s ? 1 : -1);
+        if (horizontal) box_fill(layer, d, far, at, end, at);
+        else box_fill(layer, d, at, far, at, end);
+    }
+}
+
+/* Box drawing fills the cell, so frames stay joined across the row spacing. */
+static bool draw_box(lv_layer_t *layer, uint32_t cp, const lv_area_t *cell, lv_color_t color)
+{
+    if (cp < 0x2500 || cp > 0x257F) return false;
+    lv_draw_rect_dsc_t d; lv_draw_rect_dsc_init(&d);
+    d.bg_color = color; d.bg_opa = LV_OPA_COVER; d.border_width = 0; d.radius = 0;
+    int32_t x1 = cell->x1, y1 = cell->y1, x2 = cell->x2, y2 = cell->y2;
+    int w = lv_area_get_width(cell), h = lv_area_get_height(cell);
+    int32_t cx = x1 + w / 2, cy = y1 + h / 2;
+
+    int dashes = 0, idx = 0;
+    if (cp >= 0x2504 && cp <= 0x250B) { idx = cp - 0x2504; dashes = idx < 4 ? 3 : 4; }
+    else if (cp >= 0x254C && cp <= 0x254F) { idx = cp - 0x254C; dashes = 2; }
+    if (dashes) {
+        /* Even index light, odd heavy; the second pair of each group is vertical. */
+        int weight = (idx & 1) ? 2 : 1;
+        bool vertical = idx & 2;
+        int len = vertical ? h : w, gap = LV_MAX(1, len / (2 * dashes));
+        for (int k = 0; k < dashes; k++) {
+            int32_t a = k * len / dashes + gap / 2, b = (k + 1) * len / dashes - (gap + 1) / 2 - 1;
+            if (vertical) box_fill(layer, &d, cx, y1 + a, cx + weight - 1, y1 + b);
+            else box_fill(layer, &d, x1 + a, cy, x1 + b, cy + weight - 1);
+        }
+        return true;
+    }
+
+    lv_area_t saved_clip;
+    if (cp >= 0x256D && cp <= 0x2573) {
+        if (!clip_to_cell(layer, cell, &saved_clip)) return true;
+        if (cp <= 0x2570) {
+            /* Rounded corner: a bordered rectangle whose rounded corner sits on
+             * the cell centre and whose other sides lie outside the clip. */
+            int32_t r = LV_MIN(w, h) / 2, out = r + 2;
+            lv_draw_rect_dsc_t b; lv_draw_rect_dsc_init(&b);
+            b.bg_opa = LV_OPA_TRANSP; b.radius = r;
+            b.border_color = color; b.border_width = 1; b.border_opa = LV_OPA_COVER;
+            bool right = cp == 0x256D || cp == 0x2570, down = cp <= 0x256E;
+            lv_area_t a = {right ? cx : x1 - out, down ? cy : y1 - out,
+                           right ? x2 + out : cx, down ? y2 + out : cy};
+            lv_draw_rect(layer, &b, &a);
+        } else {
+            lv_draw_line_dsc_t l; lv_draw_line_dsc_init(&l);
+            l.color = color; l.opa = LV_OPA_COVER; l.width = 1;
+            if (cp != 0x2572) {   /* upper right to lower left */
+                l.p1 = (lv_point_precise_t){x2 + 1, y1}; l.p2 = (lv_point_precise_t){x1, y2 + 1};
+                lv_draw_line(layer, &l);
+            }
+            if (cp != 0x2571) {   /* upper left to lower right */
+                l.p1 = (lv_point_precise_t){x1, y1}; l.p2 = (lv_point_precise_t){x2 + 1, y2 + 1};
+                lv_draw_line(layer, &l);
+            }
+        }
+        layer->_clip_area = saved_clip;
+        return true;
+    }
+
+    uint8_t v = s_box_arms[cp - 0x2500];
+    int arm[4] = {v & 3, (v >> 2) & 3, (v >> 4) & 3, v >> 6};
+    const int vert[2] = {arm[BOX_UP], arm[BOX_DOWN]}, horiz[2] = {arm[BOX_LEFT], arm[BOX_RIGHT]};
+    if (arm[BOX_LEFT]) box_arm(layer, &d, true, true, arm[BOX_LEFT], arm[BOX_RIGHT], vert, cx, cy, x1);
+    if (arm[BOX_RIGHT]) box_arm(layer, &d, true, false, arm[BOX_RIGHT], arm[BOX_LEFT], vert, cx, cy, x2);
+    if (arm[BOX_UP]) box_arm(layer, &d, false, true, arm[BOX_UP], arm[BOX_DOWN], horiz, cy, cx, y1);
+    if (arm[BOX_DOWN]) box_arm(layer, &d, false, false, arm[BOX_DOWN], arm[BOX_UP], horiz, cy, cx, y2);
+    return true;
+}
+
+/* Solid triangles used as prompt characters (▶ ▸ ► ...). They are one
+ * column wide in a terminal, but the CJK faces draw them a full 24 px wide,
+ * so the cell clip would keep only half; draw them to fit the cell instead. */
+static bool draw_triangle_symbol(lv_layer_t *layer, uint32_t cp, const lv_area_t *cell, lv_color_t color)
+{
+    /* Direction: 0 up, 1 right, 2 down, 3 left. Size: 0 large, 1 small, 2 pointer. */
+    static const struct { uint16_t cp; uint8_t dir, size; } shapes[] = {
+        {0x25B2, 0, 0}, {0x25B4, 0, 1}, {0x25B6, 1, 0}, {0x25B8, 1, 1}, {0x25BA, 1, 2},
+        {0x25BC, 2, 0}, {0x25BE, 2, 1}, {0x25C0, 3, 0}, {0x25C2, 3, 1}, {0x25C4, 3, 2},
+    };
+    size_t i = 0;
+    while (i < sizeof(shapes) / sizeof(shapes[0]) && shapes[i].cp != cp) i++;
+    if (i == sizeof(shapes) / sizeof(shapes[0])) return false;
+    int w = lv_area_get_width(cell), h = lv_area_get_height(cell);
+    int32_t cx = cell->x1 + w / 2, cy = cell->y1 + h / 2;
+    /* Half extents along and across the pointing direction. */
+    int32_t along = shapes[i].size == 1 ? w / 4 : (w - 2) / 2;
+    int32_t across = shapes[i].size == 0 ? (w - 2) * 3 / 5 : shapes[i].size == 1 ? w / 4 + 1 : w / 3;
+    int dir = shapes[i].dir;
+    int32_t sx = dir == 1 ? 1 : dir == 3 ? -1 : 0, sy = dir == 2 ? 1 : dir == 0 ? -1 : 0;
+    lv_draw_triangle_dsc_t d; lv_draw_triangle_dsc_init(&d);
+    d.color = color; d.opa = LV_OPA_COVER;
+    d.p[0].x = cx + sx * along; d.p[0].y = cy + sy * along;          /* tip */
+    d.p[1].x = cx - sx * along - sy * across; d.p[1].y = cy - sy * along + sx * across;
+    d.p[2].x = cx - sx * along + sy * across; d.p[2].y = cy - sy * along - sx * across;
+    lv_draw_triangle(layer, &d);
+    return true;
+}
+
 /* Terminal artwork fills cells, including the extra text leading. */
 static bool draw_cell_art(lv_layer_t *layer, uint32_t cp, const lv_area_t *cell, lv_color_t color)
 {
-    bool line = cp >= 0x2500 && cp <= 0x2503;
-    if (!line && (cp < 0x2580 || cp > 0x259F)) return false;
+    if (draw_powerline(layer, cp, cell, color) || draw_box(layer, cp, cell, color) ||
+        draw_triangle_symbol(layer, cp, cell, color)) return true;
+    if (cp < 0x2580 || cp > 0x259F) return false;
     lv_draw_rect_dsc_t d; lv_draw_rect_dsc_init(&d);
     d.bg_color = color; d.bg_opa = LV_OPA_COVER; d.border_width = 0; d.radius = 0;
     lv_area_t a = *cell;
     int w = lv_area_get_width(cell), h = lv_area_get_height(cell);
-    if (line) {
-        int thickness = (cp & 1) ? 2 : 1;
-        if (cp <= 0x2501) { a.y1 += h / 2; a.y2 = a.y1 + thickness - 1; }
-        else { a.x1 += w / 2; a.x2 = a.x1 + thickness - 1; }
-        lv_draw_rect(layer, &d, &a); return true;
-    }
     if (cp == 0x2580) a.y2 = a.y1 + (h + 1) / 2 - 1;
     else if (cp <= 0x2588) a.y1 = a.y2 + 1 - (h * (cp - 0x2580) + 7) / 8;
     else if (cp <= 0x258F) a.x2 = a.x1 + (w * (0x2590 - cp) + 7) / 8 - 1;

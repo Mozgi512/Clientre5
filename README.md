@@ -11,6 +11,8 @@ Tab5 を単体で使える端末に変えます。物理キーボード中心の
 ## 主な機能
 
 - **SSH ターミナル**: VT100 / xterm-256color 互換、スクロールバック、全角 CJK 文字対応。
+  [Nerd Fonts](https://www.nerdfonts.com/) のアイコンと Powerline 記号を内蔵しているので、
+  oh-my-zsh・powerlevel10k・Starship などのプロンプトもそのまま表示できます。
   パスワード・公開鍵・キーボードインタラクティブ認証。ホスト鍵は初回接続時に確認して保存します。
 - **日本語入力**: ローマ字→かな、SKK 辞書によるかな漢字変換（SKK-JISYO.M 内蔵、TF カードの
   SKK-JISYO.L も利用可）。UI が中国語のときは拼音入力も使えます。`Ctrl+Space` または `A/あ` キーで切替。
@@ -118,6 +120,7 @@ Clientre 5 独自のコード（`firmware/main`、`firmware/updater`、`firmware
 | SKK-JISYO.M（辞書データ） | GPL-2.0-or-later |
 | x12y12pxMaruMinya「マルミーニャ」hicc 作（ビットマップ化した部分集合のみ。TTF は同梱しません） | 無料・商用利用可・加工/埋め込み可 |
 | Noto Sans CJK、DejaVu Sans Mono（生成フォントデータ） | OFL-1.1 / Bitstream Vera |
+| [Nerd Fonts](https://github.com/ryanoasis/nerd-fonts) Symbols v3.5.1（生成フォントデータ） | MIT。アイコンセットごとに MIT / CC BY 4.0 / Apache-2.0 / OFL-1.1（[内訳](firmware/README.md#licenses)） |
 
 このため、ファームウェアのバイナリには LGPL・GPL のコンポーネントが含まれます。完全なソースコードはこのリポジトリにあります。
 

@@ -74,3 +74,26 @@ splash triggers no periodic redraw, captures it to `screen.ppm`, then initialize
 the UI and checks the navigation handoff. It uses no hardware/service mocks to
 construct the logo. Startup duration and the real LCD/backlight handoff still
 require a physical Tab5 check.
+
+## Nerd Font icons
+
+```sh
+./preview nerd 0   # MaruMinya terminal face (Orange EL)
+./preview nerd 3   # Noto terminal face (Dark)
+```
+
+Checks that Nerd Font codepoints (Powerline, Font Awesome, Material Design in the supplementary
+private-use plane, and U+E000, which MaruMinya also defines) resolve to the one-cell icon font in
+the terminal only, that the UI still finds LVGL's own symbol at U+F1EB, that a Powerline arrow
+covers the full 32 px row, and that icons sit in the middle of the row. Writes
+`/tmp/clientre-nerd-<preset>.ppm`.
+
+```sh
+./preview box 0
+./preview box 3
+```
+
+Renders the powerlevel10k two-line prompt from GitHub issue #1 (frame, segments, right prompt) and
+light, double and heavy boxes, rounded corners and dashes; checks that the frame and the box
+verticals run unbroken across rows, that the double strokes keep their gap, and that `▶` fits its
+cell. Writes `/tmp/clientre-box-<preset>.ppm`.

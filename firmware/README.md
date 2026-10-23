@@ -15,7 +15,7 @@ firmware/
 ├── main/
 │   ├── app_main.c            boot: BSP, display, SD, WiFi, USB, IME, UI
 │   ├── i18n/                 EN / 简体中文 / 繁體中文 / 日本語 string table
-│   ├── fonts/                generated LVGL fonts (MaruMinya, Noto/DejaVu fallback)
+│   ├── fonts/                generated LVGL fonts (MaruMinya, Noto/DejaVu fallback, Nerd Font icons)
 │   ├── ime/                  input method: romaji→kana, SKK dictionary, pinyin, candidate bar
 │   ├── input/                Tab5 I2C keyboard (0x6D, HID mode) + USB HID keyboard, key routing
 │   ├── term/                 VT100/xterm-256color emulator (wide chars, scrollback), LVGL renderer
@@ -115,6 +115,18 @@ has not been measured on hardware.
   JIS X 0213 levels 3/4, half-width kana, compatibility ideographs and the squared unit forms;
   wide characters occupy two cells like a real terminal. The UI fonts carry all the translated
   text natively, so no label falls back to the monospace font for its size.
+* **Nerd Font icons**: every private-use glyph of Symbols Nerd Font Mono (Powerline, Font Awesome,
+  Material Design, Devicons, Octicons, Codicons, Seti, Weather, ...) is in the terminal font, one
+  cell wide and centred on the row, so powerline / powerlevel10k / Starship prompts and `eza --icons`
+  render as on a PC. The Powerline separators U+E0B0-E0BF are drawn over the whole cell, including
+  the row spacing, so prompt segments join without gaps. The icons are terminal-only: the UI keeps
+  LVGL's own symbols at the same codepoints, and in the terminal they also take precedence over
+  MaruMinya's private-use glyphs at U+E000-E04F.
+* **Box drawing**: all of U+2500-257F (light, heavy and double lines, tees, crosses, dashes,
+  rounded corners and diagonals) is drawn over the whole cell from a table generated from the
+  Unicode character names, so powerlevel10k's `╭─`/`╰─` frame, tmux and htop borders stay joined
+  across the row spacing. The solid triangles ▲▶▼◀, ▴▸▾◂ and ►◄ used as prompt characters are
+  drawn to fit one cell, since the CJK faces give them a 24 px glyph the cell would cut in half.
 
 ## Tailscale (tailnet SSH)
 
@@ -156,13 +168,16 @@ cannot use `autogroup:member` or a user as `dst` when the source is a tag).
 `gen_pixel_fonts.sh` reads `x12y12pxMaruMinya.ttf` from the repository root by default
 (not committed: the font's terms allow embedding but the TTF itself is obtained from its
 author, hicc), or accepts a TTF path. `gen_fonts.sh` needs `NotoSansMonoCJKjp-Regular.otf` and
-`DejaVuSansMono.ttf` in the supplied directory.
+`DejaVuSansMono.ttf` in the supplied directory. `gen_nerd_font.sh` takes
+`SymbolsNerdFontMono-Regular.ttf` from `NerdFontsSymbolsOnly.zip` of a
+[Nerd Fonts release](https://github.com/ryanoasis/nerd-fonts/releases) (v3.5.1 is committed).
 
 ```sh
 npm i lv_font_conv                                  # once
 pip3 install fonttools                              # once
 sh tools/gen_pixel_fonts.sh              # the UI and terminal faces
 sh tools/gen_fonts.sh       <font dir> [SKK-JISYO.M]  # the CJK/symbol fallback
+sh tools/gen_nerd_font.sh   <SymbolsNerdFontMono-Regular.ttf>  # terminal icons (takes ~10 min)
 python3 tools/skk2bin.py skk    SKK-JISYO.M main/ime/dict/skk_m.bin
 python3 tools/skk2bin.py pinyin managed_components/lvgl__lvgl/src/widgets/ime/lv_ime_pinyin.c main/ime/dict/pinyin.bin
 ```
@@ -173,6 +188,12 @@ exactly one terminal cell. The title face is a subset taken from `i18n_chars.py`
 all of `main/` and (with `--font`) drops the characters the face does not have -- run
 `gen_pixel_fonts.sh` again after adding translated strings. LVGL draws a hollow rectangle for any
 character missing from the whole fallback chain, so a box on screen means a gap in these ranges.
+
+`nerd_cell.py` halves the square Nerd Font Mono icons to the 12 x 24 px cell and centres them half an
+em above the baseline (the middle of the MaruMinya box); `fonts.c` moves them at run time to the
+middle of the Noto box. The Powerline block is stretched to the full em height instead. Only the
+private-use codepoints are kept, since the base faces already draw the few standard characters
+(U+2665, U+26A1, ...) the symbols font also carries.
 
 ## Appearance, gestures and credential storage
 
@@ -289,4 +310,7 @@ updater and reboots; the updater verifies the SHA-256 and flashes `main_app`.
 
 libssh (LGPL-2.1), MicroLink / wireguard-lwip (MIT), LVGL (MIT), MaruMinya (source TTF copyright © 2023 hicc), Noto Sans CJK (OFL-1.1), DejaVu Sans Mono (Bitstream Vera / Arev, permissive),
 SKK-JISYO (GPL-2.0, data only),
+Nerd Fonts Symbols v3.5.1 (MIT; its icon sets: Font Awesome and Codicons CC BY 4.0, Material Design
+Icons Apache-2.0, Pomicons and Weather Icons OFL-1.1, Devicons, Octicons, Seti UI, Font Awesome
+Extension, Powerline, Powerline Extra and IEC Power Symbols MIT, Font Logos Unlicense),
 ESP-IDF components (Apache-2.0). Application code in `main/` and `updater/`: MIT (see [LICENSE](../LICENSE)).

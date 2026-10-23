@@ -83,6 +83,9 @@ Uploading many large files over WiFi can be unreliable.
   MaruMinya at integer pixel scales. Chinese uses Noto CJK throughout, including Latin text, so faces do not
   mix. Dark / Light / Nord / Solarized / Gruvbox / Classic switch to smooth Montserrat or Noto CJK, and the
   terminal uses a smooth monospace CJK face.
+- **Nerd Font icons** are built into the terminal in every theme. Prompts such as powerlevel10k, Starship or
+  oh-my-zsh's agnoster show their icons and Powerline arrows without any setting on the Tab5; on the remote
+  host, choose the Nerd Font / Powerline style when the prompt asks (e.g. `p10k configure`).
 - **Appearance** (Settings → Display → Appearance): Orange EL is the default (black, amber text, square
   corners, glow, scan lines). Also Retro CRT (green phosphor), Pixel, Dark, Light, Nord, Solarized Dark,
   Gruvbox and Classic. You can change all eight colours, corner radius, padding density, glow, scan lines,

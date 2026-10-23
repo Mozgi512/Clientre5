@@ -12,6 +12,7 @@ LV_FONT_DECLARE(font_px20);
 LV_FONT_DECLARE(font_px24);
 LV_FONT_DECLARE(font_px36b);
 LV_FONT_DECLARE(font_cjk);
+LV_FONT_DECLARE(font_nerd);   /* Nerd Font icons, terminal only */
 LV_FONT_DECLARE(font_icons16);
 LV_FONT_DECLARE(font_icons32);
 extern const lv_font_t *FONT_ICON;

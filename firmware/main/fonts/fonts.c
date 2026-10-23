@@ -20,7 +20,32 @@ static lv_font_t s_term_symbols = {
 
 /* The generated fonts live in flash (const). LVGL stores the fallback pointer
  * inside lv_font_t, so we work on RAM copies. */
-static lv_font_t s_px20, s_px24, s_px36b, s_cjk, s_mont22, s_mont30, s_icons;
+static lv_font_t s_px20, s_px24, s_px36b, s_cjk, s_mont22, s_mont30, s_icons, s_nerd;
+
+/* Nerd Font icons are centred half an em above the baseline, the middle of the
+ * MaruMinya box; the Noto box sits lower, so the terminal font moves them. */
+static int32_t s_nerd_shift;
+
+static bool nerd_private_use(uint32_t cp)
+{
+    return (cp >= 0xE000 && cp <= 0xF8FF) || cp >= 0xF0000;
+}
+
+static bool nerd_glyph_dsc(const lv_font_t *font, lv_font_glyph_dsc_t *g, uint32_t cp, uint32_t next)
+{
+    if (!lv_font_get_glyph_dsc_fmt_txt(font, g, cp, next)) return false;
+    g->ofs_y += s_nerd_shift;
+    return true;
+}
+
+/* MaruMinya has private-use glyphs of its own at U+E000-E04F. In the terminal
+ * those codepoints mean Nerd Font icons, so the base face yields them. */
+static bool term_glyph_dsc(const lv_font_t *font, lv_font_glyph_dsc_t *g, uint32_t cp, uint32_t next)
+{
+    if (nerd_private_use(cp) && lv_font_get_glyph_dsc_fmt_txt(&s_nerd, g, cp, 0)) return false;
+    return lv_font_get_glyph_dsc_fmt_txt(font, g, cp, next);
+}
+
 static bool s_terminal_pixel = true;
 const lv_font_t *FONT_SMALL = &s_px20;
 const lv_font_t *FONT_BODY = &s_px24;
@@ -81,6 +106,8 @@ void fonts_init(void)
 {
     s_px20 = font_px20; s_px24 = font_px24; s_px36b = font_px36b;
     s_cjk = font_cjk; s_mont22 = lv_font_montserrat_22; s_mont30 = lv_font_montserrat_30;
+    s_nerd = font_nerd;
+    s_nerd.get_glyph_dsc = nerd_glyph_dsc;
     /* MaruMinya covers Japanese, so the simplified and traditional Chinese
      * of the zh translations falls through to Noto, and the LVGL icon glyphs
      * to Montserrat behind it. Noto Sans Mono CJK at 24 px advances 12 px, the
@@ -102,6 +129,11 @@ void fonts_set_term_line_height(int target)
     g_term_font.line_height = target;
     g_term_font.base_line = base->base_line - delta / 2;
     if (g_term_font.base_line < 0) g_term_font.base_line = 0;
-    s_term_symbols.fallback = &s_cjk;
+    g_term_font.get_glyph_dsc = term_glyph_dsc;
+    /* Centre the icons on the cell: its middle is this far above the baseline,
+     * the icons' 12 px (half of the 24 px em, see tools/nerd_cell.py). */
+    s_nerd_shift = (g_term_font.line_height - g_term_font.base_line) - g_term_font.line_height / 2 - 12;
+    s_nerd.fallback = &s_cjk;
+    s_term_symbols.fallback = &s_nerd;
     g_term_font.fallback = &s_term_symbols;
 }

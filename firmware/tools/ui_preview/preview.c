@@ -317,6 +317,113 @@ static void terminal_art_check(void) {
     puts("CLI triangles are one cell; full-height block artwork has no gaps across columns or rows.");
 }
 
+static int find_col(vt_t *vt,int y,uint32_t cp) {
+    const vt_cell_t *row=vt_view_row(vt,y);
+    for(int x=0;x<vt_cols(vt);x++) if(row[x].cp==cp) return x;
+    assert(0); return -1;
+}
+static const uint8_t *pixel_at(lv_draw_buf_t *snap,int x,int y) {
+    return snap->data+y*snap->header.stride+x*3;   /* B, G, R */
+}
+static void terminal_nerd_check(int preset) {
+    /* Nerd Font icons resolve in the terminal chain only, one cell wide; the
+     * UI keeps LVGL's own symbols at the same private-use codepoints. */
+    const uint32_t icons[]={0xE000,0xE0A0,0xF015,0xF0001,0xF31B};
+    for(size_t i=0;i<sizeof(icons)/sizeof(icons[0]);i++) {
+        lv_font_glyph_dsc_t g;
+        assert(lv_font_get_glyph_dsc(&g_term_font,&g,icons[i],0));
+        assert(g.resolved_font->dsc==font_nerd.dsc && g.adv_w==12);
+    }
+    lv_font_glyph_dsc_t ui;
+    assert(lv_font_get_glyph_dsc(FONT_BODY,&ui,0xF1EB,0) && ui.resolved_font->dsc!=font_nerd.dsc);
+
+    lv_obj_t *scr=ui_screen_base(); lv_screen_load(scr);
+    fonts_set_term_line_height(32);
+    vt_t *vt=vt_create(60,5,0);
+    term_view_t *tv=term_view_create(scr,vt,&g_term_font);
+    lv_obj_set_size(term_view_obj(tv),720,160); lv_obj_update_layout(scr);
+    term_view_set_colors(tv,lv_color_hex(0xE5E7EB),lv_color_hex(0x000000));
+    const char *sample=
+        "\033[48;2;40;80;200;97m user@tab5 \033[38;2;40;80;200;48;2;40;160;80m\uE0B0"
+        "\033[97m \uF07C ~/src \033[38;2;40;160;80;49m\uE0B0\033[0m \uE0A0 main \uF015 \U000F0001 \uE000\r\n"
+        "\033[96m \uE0B1 \uE0B3 \uE0B4\uE0B5\uE0B6\uE0B7 \uE0B8\uE0B9\uE0BA\uE0BB\uE0BC\uE0BD\uE0BE\uE0BF \uE0C0\uE0C2\033[0m\r\n"
+        " \uF31B \uE718 \uE7A8 \uF09B \uEA60 \U000F0219 \uF013 \uF120 \uE5FA \uF489\r\n"
+        "\033[38;2;40;80;200m\uE0B6\033[48;2;40;80;200;97m Clientre \uE0A0 日本語 \033[0;38;2;40;80;200m\uE0B4\033[0m ok\033[?25l";
+    vt_feed(vt,(const uint8_t *)sample,strlen(sample));
+    char path[64]; snprintf(path,sizeof(path),"/tmp/clientre-nerd-%d.ppm",preset);
+    assert(snapshot(term_view_obj(tv),path)==0);
+    lv_draw_buf_t *snap=lv_snapshot_take(term_view_obj(tv),LV_COLOR_FORMAT_RGB888); assert(snap);
+    /* The arrow spans the whole 32 px row, not the 24 px glyph box: its left
+     * column is segment blue but for the anti-aliased corner pixels, and its
+     * right edge at the top and bottom already shows the next segment. */
+    int arrow=find_col(vt,0,0xE0B0)*12;
+    for(int y=1;y<31;y++) {
+        const uint8_t *p=pixel_at(snap,arrow,y);
+        assert(p[0]>=190 && p[1]>=70 && p[1]<=90 && p[2]<=50);
+    }
+    const uint8_t *top=pixel_at(snap,arrow+11,0), *bottom=pixel_at(snap,arrow+11,31);
+    assert(top[1]>=150 && top[0]<=90 && bottom[1]>=150 && bottom[0]<=90);
+    /* Icons sit in the middle of the 32 px row in both faces. */
+    int branch=find_col(vt,0,0xE0A0)*12, first=-1, last=-1;
+    for(int y=0;y<32;y++) for(int x=branch;x<branch+12;x++) {
+        const uint8_t *p=pixel_at(snap,x,y);
+        if(p[0]||p[1]||p[2]) { if(first<0) first=y; last=y; }
+    }
+    assert(first>=0 && abs((first+last)-31)<=2);
+    lv_draw_buf_destroy(snap);
+    term_view_destroy(tv); vt_destroy(vt);
+    printf("Nerd Font icons and full-cell Powerline separators passed (%s face).\n",
+           g_term_font.dsc==font_px24.dsc ? "MaruMinya" : "Noto");
+}
+
+static bool lit(lv_draw_buf_t *snap,int x,int y,uint32_t bg) {
+    const uint8_t *p=pixel_at(snap,x,y);
+    return p[0]!=(bg&0xFF) || p[1]!=((bg>>8)&0xFF) || p[2]!=(bg>>16);
+}
+static void terminal_box_check(int preset) {
+    /* A powerlevel10k two-line prompt with its frame, as in GitHub issue #1,
+     * then light, double and heavy boxes, rounded corners and dashes. */
+    const uint32_t bg=0x262626;
+    lv_obj_t *scr=ui_screen_base(); lv_screen_load(scr);
+    fonts_set_term_line_height(32);
+    vt_t *vt=vt_create(60,8,0);
+    term_view_t *tv=term_view_create(scr,vt,&g_term_font);
+    lv_obj_set_size(term_view_obj(tv),720,256); lv_obj_update_layout(scr);
+    term_view_set_colors(tv,lv_color_hex(0xD0D0D0),lv_color_hex(bg));
+    const char *sample=
+        "\033[38;2;140;125;110m╭─\033[48;2;176;154;133;38;2;38;38;38m \uF17A "
+        "\033[38;2;176;154;133;48;2;64;140;140m\uE0B0\033[38;2;30;30;30m ~ \033[0;38;2;64;140;140m\uE0B0"
+        "\033[38G\uE0B2\033[48;2;64;140;140;38;2;30;30;30m aseeon@nexus \uF017 18:16 \033[0m\r\n"
+        "\033[38;2;140;125;110m╰─▶ \033[0m❯ ls\r\n\r\n"
+        " ┌─┬─┐ ╔═╦═╗ ┏━┳━┓ ╭─╮ ┄┄┈┈ ╌╌ ╱╲╳\r\n"
+        " │ │ │ ║ ║ ║ ┃ ┃ ┃ │ │ ┆ ┊ ╎\r\n"
+        " ├─┼─┤ ╠═╬═╣ ┣━╋━┫ ╰─╯ ┆ ┊ ╎\r\n"
+        " └─┴─┘ ╚═╩═╝ ┗━┻━┛ ╒═╕ ╓─╖\033[?25l";
+    vt_feed(vt,(const uint8_t *)sample,strlen(sample));
+    char path[64]; snprintf(path,sizeof(path),"/tmp/clientre-box-%d.ppm",preset);
+    assert(snapshot(term_view_obj(tv),path)==0);
+    lv_draw_buf_t *snap=lv_snapshot_take(term_view_obj(tv),LV_COLOR_FORMAT_RGB888); assert(snap);
+    /* The prompt frame runs from the middle of row 0 to the middle of row 1
+     * without a gap in the row spacing; the corner arcs leave it at r = 6. */
+    for(int y=16+6;y<=32+16-6;y++) assert(lit(snap,6,y,bg));
+    assert(lit(snap,11,16,bg) && lit(snap,11,32+16,bg));
+    /* The prompt character fits its cell instead of losing its right half. */
+    assert(lit(snap,2*12+2,32+16,bg) && lit(snap,2*12+10,32+16,bg) && !lit(snap,2*12+10,32+10,bg));
+    /* Box verticals stay joined across four rows: light, both double strokes
+     * (the inner one turns at ╔ and ╚ and opens where ╠ attaches), heavy. */
+    for(int y=3*32+16;y<=6*32+16;y++) {
+        assert(lit(snap,1*12+6,y,bg) && lit(snap,5*12+6,y,bg));
+        assert(lit(snap,7*12+5,y,bg) && !lit(snap,7*12+6,y,bg));
+        assert(lit(snap,7*12+7,y,bg) || y==3*32+16 || y==5*32+16 || y==6*32+16);
+        assert(lit(snap,13*12+6,y,bg) && lit(snap,13*12+7,y,bg));
+    }
+    /* Inside the double box the strokes keep their gap: ╬ has four corners. */
+    assert(!lit(snap,9*12+6,5*32+16,bg));
+    lv_draw_buf_destroy(snap);
+    term_view_destroy(tv); vt_destroy(vt);
+    puts("Box drawing joins across rows; powerline frame prompt rendered.");
+}
+
 static void terminal_palette_preview(void) {
     ui_theme_set_terminal_amber();
     assert(g_settings.term_bg==0x241200 && g_settings.term_fg==0xFF9800);
@@ -454,6 +561,8 @@ int main(int argc,char **argv) {
     if (argc>1 && !strcmp(argv[1],"cli-colors")) { terminal_palette_preview(); return 0; }
     if (argc>1 && !strcmp(argv[1],"gesture")) { gesture_check(); return 0; }
     if (argc>1 && !strcmp(argv[1],"art")) { terminal_art_check(); return 0; }
+    if (argc>1 && !strcmp(argv[1],"box")) { ui_theme_reinit_lvgl(); terminal_box_check(argc>2?atoi(argv[2]):0); return 0; }
+    if (argc>1 && !strcmp(argv[1],"nerd")) { ui_theme_reinit_lvgl(); terminal_nerd_check(argc>2?atoi(argv[2]):0); return 0; }
     if (argc>1 && !strcmp(argv[1],"terminal")) { terminal_spacing_check(); return 0; }
     if (argc>1 && !strcmp(argv[1],"keyboard")) { keyboard_check(); return 0; }
     if (argc>1 && !strcmp(argv[1],"motion")) { motion_check(d); return 0; }

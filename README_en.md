@@ -11,7 +11,8 @@ Japanese input, a Tailscale client, and a small set of file and media tools.
 ## Features
 
 - **SSH terminal**: VT100 / xterm-256color emulator with scrollback and double-width CJK
-  characters. Password, public-key and keyboard-interactive auth; host keys are pinned
+  characters. [Nerd Font](https://www.nerdfonts.com/) icons and Powerline symbols are built in, so
+  oh-my-zsh, powerlevel10k and Starship prompts render as intended. Password, public-key and keyboard-interactive auth; host keys are pinned
   on first connect.
 - **Japanese input**: romaji to kana, SKK dictionary kana-kanji conversion (SKK-JISYO.M
   built in, SKK-JISYO.L loadable from the TF card). Chinese pinyin is available when the UI
@@ -123,6 +124,7 @@ Clientre 5's own code (`firmware/main`, `firmware/updater`, `firmware/tools`) is
 | SKK-JISYO.M (dictionary data) | GPL-2.0-or-later |
 | x12y12pxMaruMinya by hicc (generated bitmap subset; the TTF is not included) | free, commercial use, modification and embedding permitted |
 | Noto Sans CJK, DejaVu Sans Mono (generated font data) | OFL-1.1 / Bitstream Vera |
+| [Nerd Fonts](https://github.com/ryanoasis/nerd-fonts) Symbols v3.5.1 (generated font data) | MIT; icon sets under MIT / CC BY 4.0 / Apache-2.0 / OFL-1.1 ([details](firmware/README.md#licenses)) |
 
 Firmware binaries therefore include LGPL and GPL-licensed parts; the complete source is in this
 repository.
